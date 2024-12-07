@@ -1060,3 +1060,77 @@ async def execute_trade(user_id: str = Body(...), trade_details: dict = Body(...
         }
         await add_user_notification(user_id, notification)
         return {"status": "error", "message": str(e)}
+import re
+from transformers import pipeline
+
+# Initialize an NLP pipeline for question answering and sentiment analysis
+qa_pipeline = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
+sentiment_pipeline = pipeline("sentiment-analysis")
+
+class NLPQueryProcessor:
+    """
+    Process natural language queries and perform operations like:
+    - Extracting intent (e.g., fetching trading performance, asking for trade decisions).
+    - Sentiment analysis on user queries or market insights.
+    - Question answering based on context (e.g., trade history or notifications).
+    """
+    
+    @staticmethod
+    def process_query(user_query: str, context: str = None) -> dict:
+        """
+        Process the user query and respond appropriately.
+        - If it's a question, use a question-answering model.
+        - If it's a statement, run sentiment analysis.
+        :param user_query: The query or command from the user.
+        :param context: Optional context to improve response accuracy (e.g., recent trades).
+        :return: Dictionary containing the response and detected intent.
+        """
+        user_query = user_query.strip().lower()
+        
+        # Check if the query is a question (basic heuristic)
+        if user_query.endswith("?"):
+            if context:
+                qa_result = qa_pipeline(question=user_query, context=context)
+                return {
+                    "intent": "question_answering",
+                    "response": qa_result["answer"],
+                    "confidence": qa_result["score"],
+                }
+            else:
+                return {
+                    "intent": "question_answering",
+                    "response": "I need more context to answer that question.",
+                    "confidence": 0.0,
+                }
+        
+        # For statements, analyze sentiment
+        sentiment_result = sentiment_pipeline(user_query)
+        return {
+            "intent": "sentiment_analysis",
+            "response": f"The sentiment of your query is {sentiment_result[0]['label']} with confidence {sentiment_result[0]['score']:.2f}.",
+            "confidence": sentiment_result[0]["score"],
+        }
+
+
+# Modify the chat endpoint to use the NLP Query Processor
+@app.post("/chat/nlp")
+async def nlp_chat_endpoint(user_message: str = Body(...), selected_exchange: Optional[str] = Body(None)):
+    """
+    A chat endpoint that uses NLP for query processing.
+    :param user_message: The user's query or command.
+    :param selected_exchange: The exchange for context-specific queries (optional).
+    """
+    context = None
+
+    # Example: Use trade history or notifications as context for question-answering
+    if selected_exchange and selected_exchange in credentials_store:
+        # You can dynamically pull more context based on the exchange
+        context = "Recent trade history and market updates..."  # Replace with real data in the future
+    
+    # Process the query with NLP
+    nlp_response = NLPQueryProcessor.process_query(user_message, context=context)
+    return {
+        "status": "success",
+        "user_message": user_message,
+        "nlp_response": nlp_response,
+    }
