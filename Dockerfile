@@ -14,3 +14,5 @@ COPY main.py /app/main.py
 EXPOSE 8000
 
 CMD ["python", "main.py"]
+
+docker build -t kaholik/my-trading-bot:latest .
