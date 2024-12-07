@@ -1,0 +1,11 @@
+numpy
+pandas
+torch
+transformers
+fastapi
+uvicorn[standard]
+scikit-learn
+requests
+websocket-client
+gym
+stable-baselines3
