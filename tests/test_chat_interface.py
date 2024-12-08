@@ -80,13 +80,4 @@ def test_chat_endpoint():
     assert response.status_code == 200, "API should return 200 on success"
     assert "response" in response.json(), "Response should include a reply"
 
-# Original import causing error
-from src.predictive_models import PredictiveModel
 
-# Updated import
-from src.predictive_models import TimeSeriesPredictor
-
-# tests/test_integration.py
-
-import pytest
-from src.feature_engineering import FeatureEngineer
