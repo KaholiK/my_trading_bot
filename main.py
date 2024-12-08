@@ -1,5 +1,3 @@
-# main.py
-
 import uvicorn
 from src import app
 from src.continuous_learning import ContinuousLearning
