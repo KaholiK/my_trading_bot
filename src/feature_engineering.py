@@ -10,6 +10,13 @@ class FeatureEngineer:
         return df
 
     def add_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        # Check for 'price', else use 'close'
+        if 'price' not in df.columns:
+            if 'close' in df.columns:
+                df = df.rename(columns={'close': 'price'})
+            else:
+                raise KeyError("Missing required column: price")
+        
         required_columns = ['timestamp', 'price']
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
@@ -34,3 +41,4 @@ class FeatureEngineer:
         df.drop(['delta'], axis=1, inplace=True)
 
         return df
+
