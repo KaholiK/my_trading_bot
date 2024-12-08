@@ -54,3 +54,35 @@ def log_performance(event_name: str, start_time: float):
     elapsed = time.time() - start_time
     logger.info(f"Event {event_name} took {elapsed:.4f}s")
     metrics.set_metric(f"event_{event_name}_time", elapsed)
+    
+# src/logging_monitoring.py
+
+import logging
+
+def setup_logging():
+    """
+    Configures the logging settings for the application.
+    """
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler()
+        ]
+    )
+
+def log_event(event: str):
+    """
+    Logs an event with INFO level.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(event)
+
+def monitor_metrics():
+    """
+    Monitors system metrics. Placeholder for actual monitoring logic.
+    """
+    pass  # Implement monitoring logic here
+
+
+__all__ = ["setup_logging", "log_event", "monitor_metrics"]
