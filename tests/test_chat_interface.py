@@ -1,6 +1,8 @@
+# tests/test_chat_interface.py
+
 import pytest
 from fastapi.testclient import TestClient
-from src.chat_interface import app, CredentialStore
+from src.chat_interface import app, CredentialStore, get_credential_store
 
 client = TestClient(app)
 
@@ -28,7 +30,16 @@ def mock_credential_store():
     }
     return store
 
-def test_store_credentials(mock_credentials, mock_credential_store):
+@pytest.fixture(autouse=True)
+def override_dependency(mock_credential_store):
+    """
+    Override the get_credential_store dependency with the mock_credential_store.
+    """
+    app.dependency_overrides[get_credential_store] = lambda: mock_credential_store
+    yield
+    app.dependency_overrides[get_credential_store] = None
+
+def test_store_credentials(mock_credentials):
     """
     Test storing API credentials through the chat interface.
     """
@@ -41,7 +52,7 @@ def test_store_credentials(mock_credentials, mock_credential_store):
     assert response.status_code == 200, "API should return 200 on success"
     assert response.json() == {"message": "Credentials stored successfully"}
 
-def test_store_credentials_existing(mock_credential_store):
+def test_store_credentials_existing():
     """
     Test storing credentials for an already existing broker.
     """
@@ -54,7 +65,7 @@ def test_store_credentials_existing(mock_credential_store):
     assert response.status_code == 400, "API should return 400 for existing credentials"
     assert response.json()["detail"] == "Credentials for binance already exist"
 
-def test_get_credentials(mock_credential_store):
+def test_get_credentials():
     """
     Test retrieving credentials through the chat interface.
     """
@@ -79,5 +90,3 @@ def test_chat_endpoint():
     response = client.post("/chat", json={"query": "What is my balance?"})
     assert response.status_code == 200, "API should return 200 on success"
     assert "response" in response.json(), "Response should include a reply"
-
-
