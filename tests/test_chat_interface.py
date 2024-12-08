@@ -8,28 +8,59 @@ def test_set_credentials():
     """
     Test setting credentials for a broker.
     """
-    response = client.post("/set_credentials", json={
-        "broker": "binance",
-        "api_key": "test_api_key",
-        "api_secret": "test_api_secret"
-    }, auth=("admin", "securepassword123"))
+    response = client.post(
+        "/set_credentials",
+        json={
+            "broker": "binance",
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret"
+        },
+        auth=("admin", "securepassword123")
+    )
     assert response.status_code == 200, "API should return 200 for successful credential setting"
+    assert response.json()["message"] == "Credentials for binance set successfully"
 
 def test_set_credentials_existing():
     """
     Test setting credentials for a broker that already has credentials.
     """
-    response = client.post("/set_credentials", json={
-        "broker": "binance",
-        "api_key": "new_api_key",
-        "api_secret": "new_api_secret"
-    }, auth=("admin", "securepassword123"))
+    # First, set credentials
+    client.post(
+        "/set_credentials",
+        json={
+            "broker": "binance",
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret"
+        },
+        auth=("admin", "securepassword123")
+    )
+    # Update credentials
+    response = client.post(
+        "/set_credentials",
+        json={
+            "broker": "binance",
+            "api_key": "new_api_key",
+            "api_secret": "new_api_secret"
+        },
+        auth=("admin", "securepassword123")
+    )
     assert response.status_code == 200, "API should return 200 for updating existing credentials"
+    assert response.json()["message"] == "Credentials for binance set successfully"
 
 def test_get_credentials():
     """
     Test retrieving credentials for a broker.
     """
+    # Ensure credentials are set
+    client.post(
+        "/set_credentials",
+        json={
+            "broker": "binance",
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret"
+        },
+        auth=("admin", "securepassword123")
+    )
     response = client.get("/get_credentials/binance", auth=("admin", "securepassword123"))
     assert response.status_code == 200, "API should return 200 for existing credentials"
     assert "api_key" in response.json(), "API response should include 'api_key'"
@@ -47,13 +78,46 @@ def test_delete_credentials():
     """
     Test deleting credentials for a broker.
     """
+    # Ensure credentials are set
+    client.post(
+        "/set_credentials",
+        json={
+            "broker": "binance",
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret"
+        },
+        auth=("admin", "securepassword123")
+    )
+    # Delete credentials
     response = client.delete("/delete_credentials/binance", auth=("admin", "securepassword123"))
     assert response.status_code == 200, "API should return 200 for successful credential deletion"
+    assert response.json()["message"] == "Credentials for binance deleted successfully"
 
 def test_list_exchanges():
     """
     Test listing available exchanges.
     """
+    # Ensure multiple credentials are set
+    client.post(
+        "/set_credentials",
+        json={
+            "broker": "binance",
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret"
+        },
+        auth=("admin", "securepassword123")
+    )
+    client.post(
+        "/set_credentials",
+        json={
+            "broker": "coinbase",
+            "api_key": "coinbase_api_key",
+            "api_secret": "coinbase_api_secret"
+        },
+        auth=("admin", "securepassword123")
+    )
     response = client.get("/list_exchanges", auth=("admin", "securepassword123"))
     assert response.status_code == 200, "API should return 200 for listing exchanges"
     assert isinstance(response.json(), list), "API response should be a list of exchanges"
+    assert "binance" in response.json(), "Exchange 'binance' should be listed"
+    assert "coinbase" in response.json(), "Exchange 'coinbase' should be listed"
