@@ -1,3 +1,3 @@
-# tests/__init__.py
+# src/__init__.py
 
-# This file can be left empty. It indicates that 'tests' is a Python package.
+from .chat_interface import app
