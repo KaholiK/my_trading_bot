@@ -1,5 +1,3 @@
-# src/data_ingestion.py
-
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
@@ -71,3 +69,4 @@ class DataIngestion:
         except Exception as err:
             logger.error(f"Other error occurred while fetching latest data: {err}")
             return pd.DataFrame()
+
