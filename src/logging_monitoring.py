@@ -3,6 +3,7 @@
 import logging
 from typing import Dict, Any
 import time
+from prometheus_client import start_http_server, Summary, Counter
 
 # Configure root logger
 logger = logging.getLogger("AI_Trading_Bot")
@@ -20,6 +21,10 @@ fh = logging.FileHandler("logs/trading_bot.log")
 fh.setLevel(logging.DEBUG)  # Detailed logs in file
 fh.setFormatter(formatter)
 logger.addHandler(fh)
+
+# Prometheus Metrics
+REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request')
+TRADE_EXECUTIONS = Counter('trade_executions_total', 'Total number of trades executed')
 
 class MetricsCollector:
     """
