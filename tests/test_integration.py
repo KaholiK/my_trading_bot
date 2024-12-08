@@ -1,19 +1,21 @@
+# tests/test_integration.py
+
 import pytest
 import pandas as pd
 import numpy as np
 import torch
-from src.execution_engine import BinanceExecutionEngine
+from src.execution_engine import AlpacaExecutionEngine
 from src.feature_engineering import FeatureEngineer
 from src.predictive_models import TimeSeriesPredictor
 
 @pytest.fixture
 def integration_components():
-    execution_engine = BinanceExecutionEngine()
+    execution_engine = AlpacaExecutionEngine()
     feature_engineer = FeatureEngineer()
     predictor = TimeSeriesPredictor(input_dim=1)  # Assuming 'price' as the input feature
     mock_feature_data = pd.DataFrame({
         'timestamp': pd.date_range(start='2020-01-01', periods=100, freq='D'),
-        'close': np.random.uniform(low=100, high=200, size=100)  # 'close' will be renamed to 'price'
+        'close': np.random.uniform(low=100.0, high=200.0, size=100).astype(float)  # Ensure float type
     })
     return {
         'execution_engine': execution_engine,
@@ -56,8 +58,12 @@ def test_integration_flow_failure_handling(integration_components):
     execution_engine = integration_components["execution_engine"]
 
     # Mock invalid feature data by passing DataFrame without 'timestamp' column
+    invalid_data = pd.DataFrame({
+        "feature1": [1, 2, 3],
+        "feature2": [4, 5, 6]
+    })
     with pytest.raises(KeyError):
-        fe.generate_features(pd.DataFrame({"feature1": [1, 2, 3], "feature2": [4, 5, 6]}))
+        fe.generate_features(invalid_data)
 
 def test_integration_concurrent_executions(integration_components):
     """
@@ -66,9 +72,9 @@ def test_integration_concurrent_executions(integration_components):
     execution_engine = integration_components["execution_engine"]
     # Assuming the execution_engine has a method to handle concurrent trades
     trades = [
-        {"symbol": "BTCUSD", "quantity": 0.1, "price": 30000},
-        {"symbol": "ETHUSD", "quantity": 2, "price": 2000},
-        {"symbol": "BNBUSD", "quantity": 5, "price": 300}
+        {"symbol": "BTCUSD", "quantity": 0.1, "side": "buy", "price": 30000},
+        {"symbol": "ETHUSD", "quantity": 2, "side": "buy", "price": 2000},
+        {"symbol": "BNBUSD", "quantity": 5, "side": "buy", "price": 300}
     ]
     results = execution_engine.execute_trades_concurrently(trades)
     assert len(results) == len(trades), "All trades should be processed"
