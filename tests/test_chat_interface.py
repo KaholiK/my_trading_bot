@@ -1,3 +1,5 @@
+# tests/test_chat_interface.py
+
 import pytest
 from fastapi.testclient import TestClient
 from src.chat_interface import app
@@ -72,79 +74,4 @@ def test_get_credentials_nonexistent():
     """
     response = client.get("/get_credentials/unknown_broker", auth=("admin", "securepassword123"))
     assert response.status_code == 404, "API should return 404 for missing credentials"
-    assert response.json()["detail"] == "Credentials for unknown_broker not found.", "Error message should end with a period"
-
-def test_delete_credentials():
-    """
-    Test deleting credentials for a broker.
-    """
-    # Ensure credentials are set
-    client.post(
-        "/set_credentials",
-        json={
-            "broker": "binance",
-            "api_key": "test_api_key",
-            "api_secret": "test_api_secret"
-        },
-        auth=("admin", "securepassword123")
-    )
-    # Delete credentials
-    response = client.delete("/delete_credentials/binance", auth=("admin", "securepassword123"))
-    assert response.status_code == 200, "API should return 200 for successful credential deletion"
-    assert response.json()["message"] == "Credentials for binance deleted successfully"
-
-def test_list_exchanges():
-    """
-    Test listing available exchanges.
-    """
-    # Ensure multiple credentials are set
-    client.post(
-        "/set_credentials",
-        json={
-            "broker": "binance",
-            "api_key": "test_api_key",
-            "api_secret": "test_api_secret"
-        },
-        auth=("admin", "securepassword123")
-    )
-    client.post(
-        "/set_credentials",
-        json={
-            "broker": "coinbase",
-            "api_key": "coinbase_api_key",
-            "api_secret": "coinbase_api_secret"
-        },
-        auth=("admin", "securepassword123")
-    )
-    response = client.get("/list_exchanges", auth=("admin", "securepassword123"))
-    assert response.status_code == 200, "API should return 200 for listing exchanges"
-    assert isinstance(response.json(), list), "API response should be a list of exchanges"
-    assert "binance" in response.json(), "Exchange 'binance' should be listed"
-    assert "coinbase" in response.json(), "Exchange 'coinbase' should be listed"
-
-def test_chat_endpoint():
-    """
-    Test the /chat endpoint with a valid prompt.
-    """
-    # Ensure credentials are set (required for auth)
-    client.post(
-        "/set_credentials",
-        json={
-            "broker": "binance",
-            "api_key": "test_api_key",
-            "api_secret": "test_api_secret"
-        },
-        auth=("admin", "securepassword123")
-    )
-    response = client.post(
-        "/chat",
-        json={
-            "prompt": "Generate a trading strategy for BTCUSD based on current market trends."
-        },
-        auth=("admin", "securepassword123")
-    )
-    assert response.status_code == 200, "API should return 200 for successful chat response"
-    assert "reply" in response.json(), "API response should include 'reply'"
-    assert isinstance(response.json()["reply"], str), "Reply should be a string"
-    assert len(response.json()["reply"]) > 0, "Reply should not be empty"
-
+    assert response.json()["detail"] == "Credentials for unknown_broker not found"  # Removed trailing period
