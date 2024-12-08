@@ -1,11 +1,19 @@
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 class FeatureEngineer:
     def generate_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Generate features from raw data.
         """
-        df = self.add_technical_indicators(df)
+        try:
+            df = self.add_technical_indicators(df)
+            logger.info("Feature engineering completed successfully.")
+        except KeyError as e:
+            logger.error(f"Feature engineering failed: {e}")
+            raise e
         # Add more feature engineering steps as needed
         return df
 
@@ -14,12 +22,15 @@ class FeatureEngineer:
         if 'price' not in df.columns:
             if 'close' in df.columns:
                 df = df.rename(columns={'close': 'price'})
+                logger.info("Renamed 'close' column to 'price'.")
             else:
+                logger.error("Missing required column: price")
                 raise KeyError("Missing required column: price")
         
         required_columns = ['timestamp', 'price']
         missing_columns = [col for col in required_columns if col not in df.columns]
         if missing_columns:
+            logger.error(f"Missing required columns: {', '.join(missing_columns)}")
             raise KeyError(f"Missing required columns: {', '.join(missing_columns)}")
         
         df = df.sort_values('timestamp')
@@ -40,5 +51,6 @@ class FeatureEngineer:
         # Drop intermediate columns
         df.drop(['delta'], axis=1, inplace=True)
 
+        logger.info("Technical indicators added to the dataset.")
         return df
 
