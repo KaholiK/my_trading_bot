@@ -1,5 +1,3 @@
-# tests/test_chat_interface.py
-
 import pytest
 from fastapi.testclient import TestClient
 from src.chat_interface import app
@@ -149,3 +147,4 @@ def test_chat_endpoint():
     assert "reply" in response.json(), "API response should include 'reply'"
     assert isinstance(response.json()["reply"], str), "Reply should be a string"
     assert len(response.json()["reply"]) > 0, "Reply should not be empty"
+
