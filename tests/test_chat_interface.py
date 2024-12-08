@@ -1,3 +1,5 @@
+# tests/test_chat_interface.py
+
 import pytest
 from fastapi.testclient import TestClient
 from src.chat_interface import app
@@ -121,3 +123,29 @@ def test_list_exchanges():
     assert isinstance(response.json(), list), "API response should be a list of exchanges"
     assert "binance" in response.json(), "Exchange 'binance' should be listed"
     assert "coinbase" in response.json(), "Exchange 'coinbase' should be listed"
+
+def test_chat_endpoint():
+    """
+    Test the /chat endpoint with a valid prompt.
+    """
+    # Ensure credentials are set (required for auth)
+    client.post(
+        "/set_credentials",
+        json={
+            "broker": "binance",
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret"
+        },
+        auth=("admin", "securepassword123")
+    )
+    response = client.post(
+        "/chat",
+        json={
+            "prompt": "Generate a trading strategy for BTCUSD based on current market trends."
+        },
+        auth=("admin", "securepassword123")
+    )
+    assert response.status_code == 200, "API should return 200 for successful chat response"
+    assert "reply" in response.json(), "API response should include 'reply'"
+    assert isinstance(response.json()["reply"], str), "Reply should be a string"
+    assert len(response.json()["reply"]) > 0, "Reply should not be empty"
