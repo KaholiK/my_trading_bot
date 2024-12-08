@@ -27,10 +27,17 @@ jobs:
     - name: List installed packages (for debugging)
       run: pip list
 
-    - name: Run tests
+    - name: List project structure (for debugging)
+      run: |
+        echo "Project Structure:"
+        ls -R
+
+    - name: Set PYTHONPATH and Run tests
       env:
         PYTHONPATH: ${{ github.workspace }}
-      run: pytest --verbose --cov=src tests/
+      run: |
+        echo "PYTHONPATH is set to: $PYTHONPATH"
+        pytest --verbose --cov=src tests/
 
     - name: Build Docker image
       run: docker build -t kaholik/my-trading-bot:latest .
