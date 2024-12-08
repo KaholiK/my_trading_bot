@@ -109,3 +109,5 @@ if __name__ == "__main__":
 
     # In future parts, we’ll integrate real feature data, hyperparameter tuning, and Transformer models.
 
+# At the end of src/predictive_models.py
+__all__ = ["PredictiveModel", "TimeSeriesPredictor"]
