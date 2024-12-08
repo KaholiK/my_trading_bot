@@ -2,6 +2,7 @@
 
 import pytest
 import torch
+import numpy as np
 from src.predictive_models import TimeSeriesPredictor
 
 def test_train_step():
@@ -13,6 +14,7 @@ def test_train_step():
     y = torch.randn(16, 1)       # Example target
     loss = predictor.train_step(X, y)
     assert isinstance(loss, float), "Loss should be a float value"
+    assert loss > 0, "Loss should be positive"
 
 def test_evaluate():
     """
@@ -23,6 +25,7 @@ def test_evaluate():
     y = torch.randn(16, 1)       # Example target
     loss = predictor.evaluate(X, y)
     assert isinstance(loss, float), "Loss should be a float value"
+    assert loss > 0, "Loss should be positive"
 
 def test_predict():
     """
