@@ -1,4 +1,4 @@
-# src/main.py
+# main.py
 
 import logging
 import uvicorn
@@ -8,31 +8,11 @@ from src.predictive_models import TimeSeriesPredictor
 from src.decision_fusion import MetaController
 from src.execution_engine import BinanceExecutionEngine, CoinbaseExecutionEngine
 from src.chat_interface import app as chat_app
-from src.logging_monitoring import app_metrics, log_trade_execution, log_event, setup_logging
+from src.logging_monitoring import setup_prometheus, logger
 
-from fastapi import FastAPI
 import threading
 
-# Initialize logging
-setup_logging()
-
-# Initialize main FastAPI app
-app = FastAPI(title="AI Trading Bot")
-
-# Mount the metrics app
-app.mount("/metrics", app_metrics)
-
-# Include chat interface routes
-app.include_router(chat_app.router)
-
-def start_chat_interface():
-    """
-    Start the chat interface FastAPI app in a separate thread.
-    """
-    uvicorn.run(chat_app, host="0.0.0.0", port=8000)
-
 def main():
-    logger = logging.getLogger("AI_Trading_Bot")
     logger.info("Starting AI Trading Bot...")
 
     # Initialize data ingestion for multiple exchanges
@@ -52,8 +32,7 @@ def main():
     # Initialize predictive model
     logger.info("Initializing predictive model...")
     predictor = TimeSeriesPredictor(input_dim=10, output_dim=1)
-    # Ensure the model checkpoint exists or handle loading appropriately
-    # predictor.load_model("models/predictive_model.pt")  # Uncomment if you have a checkpoint
+    predictor.load_model("models/predictive_model.pt")  # Load saved model
 
     # Initialize meta-controller
     logger.info("Initializing meta-controller...")
@@ -67,11 +46,16 @@ def main():
     }
 
     # Set API credentials for each exchange (replace with actual credentials)
-    # Credentials are managed via the chat interface
-    # Example:
-    # execution_engines["binance"].set_credentials("binance", "your_binance_api_key", "your_binance_secret_key")
+    execution_engines["binance"].set_credentials("binance", "your_binance_api_key", "your_binance_secret_key")
+    execution_engines["coinbase"].set_credentials("coinbase", "your_coinbase_api_key", "your_coinbase_secret_key")
 
-    # Start the chat interface in a separate thread
+    # Start Prometheus metrics server
+    threading.Thread(target=setup_prometheus, daemon=True).start()
+
+    # Start the FastAPI chat interface in a separate thread
+    def start_chat_interface():
+        uvicorn.run(chat_app, host="0.0.0.0", port=8000)
+
     threading.Thread(target=start_chat_interface, daemon=True).start()
 
     # Main trading loop
@@ -88,29 +72,26 @@ def main():
 
                 # Fuse signals
                 decision = meta_controller.fuse_signals(
-                    predictive_signal=prediction[0][0],  # Assuming prediction is a 2D array
+                    predictive_signal=prediction[0],
                     rl_action=1,  # Placeholder RL action
                     sentiment_score=0.0  # Placeholder sentiment score
                 )
 
                 # Execute trade if necessary
                 if decision["final_action"] in ["buy", "sell"]:
-                    execution_result = execution_engines[exchange_name].execute_trade(
+                    execution_engines[exchange_name].send_order(
                         symbol="BTCUSDT",  # Example symbol
                         side=decision["final_action"].upper(),
                         quantity=0.01,  # Example quantity
                         order_type="MARKET",
                         price=None
                     )
-                    log_trade_execution(execution_result["status"])
-
-            time.sleep(5)  # Adjust the sleep duration as needed
 
     except KeyboardInterrupt:
         logger.info("Shutting down AI Trading Bot...")
         for source in data_sources.values():
             source.disconnect()
 
+# Start the application
 if __name__ == "__main__":
     main()
-
