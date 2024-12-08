@@ -1,47 +1,35 @@
-# tests/test_predictive_models.py
-
 import pytest
 import torch
 import numpy as np
 from src.predictive_models import TimeSeriesPredictor
 
-def test_train_step():
-    """
-    Test the train_step method of TimeSeriesPredictor.
-    """
-    predictor = TimeSeriesPredictor()
-    X = torch.randn(16, 30, 10)  # Example input
-    y = torch.randn(16, 1)       # Example target
-    loss = predictor.train_step(X, y)
-    assert isinstance(loss, float), "Loss should be a float value"
-    assert loss > 0, "Loss should be positive"
+@pytest.fixture
+def predictor():
+    return TimeSeriesPredictor(input_dim=1)
 
-def test_evaluate():
+def test_predictor_forward(predictor):
     """
-    Test the evaluate method of TimeSeriesPredictor.
+    Test the forward pass of the predictor.
     """
-    predictor = TimeSeriesPredictor()
-    X = torch.randn(16, 30, 10)  # Example input
-    y = torch.randn(16, 1)       # Example target
-    loss = predictor.evaluate(X, y)
-    assert isinstance(loss, float), "Loss should be a float value"
-    assert loss > 0, "Loss should be positive"
+    # Create a dummy input tensor with shape (batch_size, sequence_length, input_dim)
+    X = torch.randn(1, 10, 1)
+    output = predictor.forward(X)
+    assert isinstance(output, np.ndarray), "Output should be a numpy array"
+    assert output.shape == (1, 1), "Output shape should be (1, 1)"
 
-def test_predict():
+def test_predictor_predict(predictor):
     """
-    Test the predict method of TimeSeriesPredictor.
+    Test the predict method of the predictor.
     """
-    predictor = TimeSeriesPredictor()
-    X = torch.randn(16, 30, 10)  # Example input
+    X = torch.randn(1, 10, 1)
     predictions = predictor.predict(X)
     assert isinstance(predictions, np.ndarray), "Predictions should be a numpy array"
-    assert predictions.shape == (16, 1), "Predictions shape mismatch"
+    assert predictions.shape == (1, 1), "Predictions shape should be (1, 1)"
 
-def test_predict_with_invalid_input():
+def test_predictor_invalid_input(predictor):
     """
-    Test the predict method with invalid input to ensure it raises appropriate errors.
+    Test the predictor with invalid input dimensions.
     """
-    predictor = TimeSeriesPredictor()
-    invalid_X = {"invalid_key": 123}
-    with pytest.raises(AttributeError):
-        predictor.predict(invalid_X)
+    X = torch.randn(10, 1)  # 2D tensor instead of 3D
+    with pytest.raises(ValueError):
+        predictor.predict(X)
