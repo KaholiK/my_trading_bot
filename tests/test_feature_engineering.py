@@ -23,6 +23,8 @@ def test_rsi_calculation(mock_data):
     result = fe.generate_features(mock_data)
     assert 'rsi' in result.columns, "RSI column should be present"
     assert not result['rsi'].isnull().all(), "RSI should have valid values"
+    # Optionally, check RSI values are within expected range
+    assert result['rsi'].min() >= 0 and result['rsi'].max() <= 100, "RSI values should be between 0 and 100"
 
 def test_moving_average(mock_data):
     """
@@ -32,6 +34,9 @@ def test_moving_average(mock_data):
     result = fe.generate_features(mock_data)
     assert 'moving_average' in result.columns, "Moving Average column should be present"
     assert not result['moving_average'].isnull().all(), "Moving Average should have valid values"
+    # Optionally, check if moving average is correctly calculated
+    expected_ma = mock_data['close'].rolling(window=14, min_periods=1).mean()
+    pd.testing.assert_series_equal(result['moving_average'], expected_ma.rename('moving_average'), check_names=False)
 
 def test_feature_scaling(mock_data):
     """
