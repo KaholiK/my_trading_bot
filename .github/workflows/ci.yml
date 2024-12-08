@@ -43,7 +43,7 @@ jobs:
         pytest --verbose --cov=src tests/
 
     - name: Build Docker image
-      run: docker build -t kaholik/my-trading-bot:latest .
+      run: docker build -t your-dockerhub-username/my-trading-bot:latest .
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v2
@@ -52,5 +52,4 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Push Docker image
-      run: docker push kaholik/my-trading-bot:latest
-
+      run: docker push your-dockerhub-username/my-trading-bot:latest
