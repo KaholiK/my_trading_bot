@@ -9,6 +9,10 @@ from src.decision_fusion import MetaController
 from src.execution_engine import BinanceExecutionEngine, CoinbaseExecutionEngine
 from src.chat_interface import app as chat_app
 from src.logging_monitoring import setup_prometheus, logger
+from src.continuous_learning import ModelRetrainer
+from src.llm_integration import LLMIntegration
+from src.risk_management import RiskManager
+from src.rl_environment import TradingEnv
 
 import threading
 
@@ -49,6 +53,38 @@ def main():
     execution_engines["binance"].set_credentials("binance", "your_binance_api_key", "your_binance_secret_key")
     execution_engines["coinbase"].set_credentials("coinbase", "your_coinbase_api_key", "your_coinbase_secret_key")
 
+    # Initialize Risk Manager
+    logger.info("Initializing risk manager...")
+    risk_manager = RiskManager(
+        max_position_size=0.5,
+        max_drawdown=0.10,  # 10%
+        stop_loss_percentage=0.03  # 3%
+    )
+
+    # Initialize LLM Integration
+    logger.info("Initializing LLM Integration...")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    if not OPENAI_API_KEY:
+        logger.error("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+        exit(1)
+    llm = LLMIntegration(api_key=OPENAI_API_KEY)
+
+    # Initialize RL Environment and Agent
+    logger.info("Initializing RL Environment...")
+    # Fetch historical data required for the RL environment
+    historical_data = data_sources["binance"].fetch_historical_data(symbol="BTCUSDT", interval="1d", lookback_days=60)
+    env = TradingEnv(data=historical_data, feature_engineer=feature_engineer)
+
+    # Initialize Model Retrainer
+    logger.info("Initializing model retrainer...")
+    retrainer = ModelRetrainer(
+        predictor=predictor,
+        feature_engineer=feature_engineer,
+        data_sources=data_sources,
+        retrain_interval=86400  # 24 hours
+    )
+    retrainer.start()
+
     # Start Prometheus metrics server
     threading.Thread(target=setup_prometheus, daemon=True).start()
 
@@ -70,25 +106,31 @@ def main():
                 # Predict next step
                 prediction = predictor.predict(feature_data)
 
+                # Get sentiment score
+                sentiment = llm.get_sentiment_scores(symbol=exchange_name.upper() + "USDT", count=5)
+
                 # Fuse signals
                 decision = meta_controller.fuse_signals(
                     predictive_signal=prediction[0],
                     rl_action=1,  # Placeholder RL action
-                    sentiment_score=0.0  # Placeholder sentiment score
+                    sentiment_score=sentiment
                 )
 
-                # Execute trade if necessary
-                if decision["final_action"] in ["buy", "sell"]:
+                # Enforce risk before executing trade
+                approved_size = risk_manager.enforce_risk(symbol="BTCUSDT", desired_size=0.1)
+                if approved_size > 0:
+                    # Execute trade
                     execution_engines[exchange_name].send_order(
                         symbol="BTCUSDT",  # Example symbol
                         side=decision["final_action"].upper(),
-                        quantity=0.01,  # Example quantity
+                        quantity=approved_size,
                         order_type="MARKET",
                         price=None
                     )
 
     except KeyboardInterrupt:
         logger.info("Shutting down AI Trading Bot...")
+        retrainer.stop()
         for source in data_sources.values():
             source.disconnect()
 
