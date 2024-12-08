@@ -10,3 +10,4 @@ websocket-client
 gym
 stable-baselines3
 pytest
+httpx>=0.23.0
