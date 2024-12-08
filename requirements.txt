@@ -6,6 +6,7 @@ pytest
 pytest-cov
 fastapi
 uvicorn
+
 # Add other dependencies here
 
 # Core Dependencies
