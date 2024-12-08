@@ -1,6 +1,9 @@
+# tests/test_integration.py
+
 import pytest
+import asyncio  # Needed for asyncio-related tests
 from src.feature_engineering import FeatureEngineer
-from src.predictive_models import PredictiveModel
+from src.predictive_models import TimeSeriesPredictor  # Use TimeSeriesPredictor instead of PredictiveModel
 from src.execution_engine import ExecutionEngine
 
 # Mock Data Example
@@ -20,7 +23,7 @@ async def test_integration_flow_success():
     """
     # Initialize Components
     feature_engineer = FeatureEngineer()
-    predictive_model = PredictiveModel()
+    predictive_model = TimeSeriesPredictor()  # Instantiate TimeSeriesPredictor
     execution_engine = ExecutionEngine()
 
     # Step 1: Feature Engineering
@@ -47,7 +50,7 @@ async def test_integration_flow_failure_handling():
     """
     # Initialize Components
     feature_engineer = FeatureEngineer()
-    predictive_model = PredictiveModel()
+    predictive_model = TimeSeriesPredictor()  # Instantiate TimeSeriesPredictor
     execution_engine = ExecutionEngine()
 
     # Mock Invalid Data
@@ -101,7 +104,7 @@ async def test_real_data_integration():
     """
     # Initialize Components
     feature_engineer = FeatureEngineer()
-    predictive_model = PredictiveModel()
+    predictive_model = TimeSeriesPredictor()  # Instantiate TimeSeriesPredictor
     execution_engine = ExecutionEngine()
 
     # Fetch Live Data (replace with actual API call or mock)
@@ -120,9 +123,3 @@ async def test_real_data_integration():
     trade_result = await execution_engine.execute_trade(prediction)
 
     assert trade_result.get("status") == "SUCCESS", "Live trade execution should succeed"
-
-# Original import causing error
-from src.predictive_models import PredictiveModel
-
-# Updated import
-from src.predictive_models import TimeSeriesPredictor
