@@ -52,4 +52,4 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
 
     - name: Push Docker image
-      run: docker push your-dockerhub-username/my-trading-bot:latest
+      run: docker push kaholik/my-trading-bot:latest
