@@ -194,4 +194,3 @@ if __name__ == "__main__":
         trade_id_to_close = open_trades[0]["trade_id"]
         close_result = binance_engine.close_trade(trade_id=trade_id_to_close)
         print("Trade Close Result:", close_result)
-
