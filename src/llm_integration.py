@@ -1,114 +1,100 @@
-# File: src/llm_integration.py
-# Part 5: LLM Integration & News/Sentiment Processing
-#
-# This module integrates a large language model (LLM) and a vector database for retrieval-augmented generation.
-# We'll set up a pipeline that:
-# 1. Ingests news headlines, earnings reports, etc.
-# 2. Embeds them into a vector space.
-# 3. Uses a local LLM to process queries and produce sentiment or fundamental insights.
+# src/llm_integration.py
 
+import logging
+import openai
+from typing import List, Dict
+from src.logging_monitoring import logger
 import os
-from typing import List, Dict, Any
-import numpy as np
-import torch
-import transformers
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from sklearn.metrics.pairwise import cosine_similarity
 
-class SimpleVectorDB:
+class LLMIntegration:
     """
-    A simple in-memory vector database that stores embeddings and associated texts.
-    In future parts, we might switch to a more scalable solution (like FAISS).
+    Integrates with a Large Language Model (e.g., OpenAI GPT) to perform sentiment analysis on textual data.
     """
-    def __init__(self, embedding_dim: int = 768):
-        self.embedding_dim = embedding_dim
-        self.vectors = []   # list of np.ndarray
-        self.texts = []     # list of strings
+    def __init__(self, api_key: str, model: str = "gpt-4"):
+        """
+        Initialize the LLMIntegration.
+        
+        :param api_key: OpenAI API key.
+        :param model: LLM model to use.
+        """
+        self.api_key = api_key
+        self.model = model
+        openai.api_key = self.api_key
 
-    def add_document(self, text: str, embedding: np.ndarray):
-        self.vectors.append(embedding)
-        self.texts.append(text)
+    def analyze_sentiment(self, texts: List[str]) -> List[Dict[str, float]]:
+        """
+        Analyze sentiment of a list of texts using the LLM.
+        
+        :param texts: List of textual data (e.g., news headlines, articles).
+        :return: List of dictionaries with sentiment scores.
+        """
+        sentiments = []
+        for text in texts:
+            try:
+                response = openai.ChatCompletion.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a sentiment analysis assistant."},
+                        {"role": "user", "content": f"Analyze the sentiment of the following text and provide a score between -1 (negative) and 1 (positive):\n\n{text}"}
+                    ],
+                    max_tokens=10,
+                    n=1,
+                    stop=None,
+                    temperature=0.0,
+                )
+                sentiment_score = float(response.choices[0].message['content'].strip())
+                sentiments.append({"text": text, "sentiment_score": sentiment_score})
+                logger.debug(f"Sentiment for text '{text}': {sentiment_score}")
+            except Exception as e:
+                logger.error(f"Error analyzing sentiment for text '{text}': {e}")
+                sentiments.append({"text": text, "sentiment_score": 0.0})  # Neutral sentiment on error
+        return sentiments
 
-    def query(self, query_emb: np.ndarray, top_k: int = 3) -> List[str]:
-        if len(self.vectors) == 0:
-            return []
-        all_vecs = np.vstack(self.vectors)  # shape: (N, embedding_dim)
-        sims = cosine_similarity(query_emb.reshape(1, -1), all_vecs).flatten()
-        top_indices = np.argsort(sims)[::-1][:top_k]
-        return [self.texts[i] for i in top_indices]
+    def fetch_news(self, symbol: str, count: int = 10) -> List[str]:
+        """
+        Fetch recent news headlines related to a specific symbol.
+        
+        :param symbol: Trading symbol (e.g., 'BTCUSDT').
+        :param count: Number of news headlines to fetch.
+        :return: List of news headlines.
+        """
+        # Placeholder: Implement actual news fetching logic using an API like NewsAPI
+        # For demonstration, returning mock data
+        mock_headlines = [
+            f"{symbol} hits new all-time high as market rallies.",
+            f"Negative sentiment as {symbol} faces regulatory challenges.",
+            f"{symbol} experiences volatility amid global economic shifts.",
+            # Add more mock headlines as needed
+        ][:count]
+        logger.info(f"Fetched {len(mock_headlines)} news headlines for {symbol}")
+        return mock_headlines
 
-class LLMInterface:
-    """
-    Wraps a local LLM model for inference. For now, assume a small model (e.g., GPT-2) to demonstrate functionality.
-    In the future, we might load a large fine-tuned financial model.
-    """
-    def __init__(self, model_name: str = "gpt2"):
-        # In a real scenario, use a specialized financial model or Llama2-like model.
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name)
-        self.model.eval()
-        if torch.cuda.is_available():
-            self.model.to('cuda')
-    
-    def generate(self, prompt: str, max_length: int = 100) -> str:
-        inputs = self.tokenizer.encode(prompt, return_tensors='pt')
-        if torch.cuda.is_available():
-            inputs = inputs.to('cuda')
-        with torch.no_grad():
-            outputs = self.model.generate(inputs, max_length=max_length, pad_token_id=self.tokenizer.eos_token_id)
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+    def get_sentiment_scores(self, symbol: str, count: int = 10) -> float:
+        """
+        Get aggregated sentiment score for a specific symbol.
+        
+        :param symbol: Trading symbol.
+        :param count: Number of news headlines to analyze.
+        :return: Aggregated sentiment score.
+        """
+        headlines = self.fetch_news(symbol, count)
+        sentiments = self.analyze_sentiment(headlines)
+        if sentiments:
+            avg_sentiment = sum(item["sentiment_score"] for item in sentiments) / len(sentiments)
+            logger.info(f"Aggregated sentiment for {symbol}: {avg_sentiment}")
+            return avg_sentiment
+        else:
+            logger.warning(f"No sentiments available for {symbol}. Returning neutral score.")
+            return 0.0
 
-class EmbeddingModel:
-    """
-    Simple embedding model placeholder.
-    In future parts, we may integrate a sentence-transformer or a specialized financial embedding model.
-    """
-    def __init__(self):
-        # Placeholder: random embeddings for now
-        # Eventually, integrate something like sentence-transformers or a finetuned BERT model.
-        pass
-    
-    def embed(self, text: str) -> np.ndarray:
-        # Placeholder: return a fixed-size random vector. 
-        # Future: Load a real embedding model.
-        np.random.seed(abs(hash(text)) % (10**6))
-        return np.random.randn(768)
-
-class NewsSentimentPipeline:
-    """
-    Pipeline to ingest news, generate embeddings, store in vector DB, and use LLM to interpret.
-    We'll integrate this pipeline with the main system later.
-    """
-    def __init__(self):
-        self.embed_model = EmbeddingModel()
-        self.vector_db = SimpleVectorDB()
-        self.llm = LLMInterface(model_name="gpt2")
-    
-    def add_news_article(self, headline: str, body: str):
-        # For now, just add headline+body as a single doc
-        text = headline + "\n" + body
-        emb = self.embed_model.embed(text)
-        self.vector_db.add_document(text, emb)
-    
-    def query_insights(self, query: str) -> str:
-        # Embed query
-        q_emb = self.embed_model.embed(query)
-        relevant_docs = self.vector_db.query(q_emb, top_k=3)
-        # Construct a prompt with the retrieved docs
-        prompt = "Given the following financial news context:\n"
-        for doc in relevant_docs:
-            prompt += f"- {doc}\n"
-        prompt += f"\nQuestion: {query}\nAnswer:"
-        response = self.llm.generate(prompt, max_length=150)
-        return response
-
+# Example Usage
 if __name__ == "__main__":
-    # Example usage
-    pipeline = NewsSentimentPipeline()
-    pipeline.add_news_article("Apple Earnings Beat Expectations",
-                              "Apple reported Q3 earnings that beat analysts' expectations by a wide margin.")
-    pipeline.add_news_article("Tesla Faces Regulatory Scrutiny",
-                              "Tesla is under investigation by safety regulators after several incidents...")
+    # Ensure you have set your OpenAI API key as an environment variable
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    if not OPENAI_API_KEY:
+        logger.error("OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+        exit(1)
     
-    answer = pipeline.query_insights("What is the sentiment on Apple stock?")
-    print("LLM Response:", answer)
+    llm = LLMIntegration(api_key=OPENAI_API_KEY)
+    sentiment = llm.get_sentiment_scores("BTCUSDT", count=5)
+    print(f"Aggregated Sentiment for BTCUSDT: {sentiment}")
