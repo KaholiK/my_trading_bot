@@ -1,27 +1,14 @@
-# .dockerignore
-
-__pycache__
+# Exclude Python cache files
+__pycache__/
 *.pyc
 *.pyo
-*.pyd
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
-*.log
+
+# Exclude Git files
+.git/
+.gitignore
+
+# Exclude environment variables file
+.env
+
+# Exclude log files
 logs/
-tests/
