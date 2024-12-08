@@ -1,15 +1,24 @@
-# File: src/predictive_models.py
-# Part 3: Predictive Modeling (Time-Series Forecasting)
-#
-# Here we define a time-series forecasting model using PyTorch. 
-# We'll start with an LSTM-based regressor to predict future prices.
-# Later, we might add Transformers, ensembles, and hyperparameter tuning.
+# src/predictive_models.py
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from typing import Optional, Tuple
 import numpy as np
+
+class PredictiveModel:
+    """
+    Abstract base class for predictive models.
+    Defines the interface for training and prediction.
+    """
+    def train_step(self, X: torch.Tensor, y: torch.Tensor) -> float:
+        raise NotImplementedError("train_step must be implemented by subclasses.")
+
+    def evaluate(self, X: torch.Tensor, y: torch.Tensor) -> float:
+        raise NotImplementedError("evaluate must be implemented by subclasses.")
+
+    def predict(self, X: torch.Tensor) -> np.ndarray:
+        raise NotImplementedError("predict must be implemented by subclasses.")
 
 class LSTMForecaster(nn.Module):
     """
@@ -38,10 +47,10 @@ class LSTMForecaster(nn.Module):
         pred = self.fc(last_output)  # (B, output_dim)
         return pred
 
-class TimeSeriesPredictor:
+class TimeSeriesPredictor(PredictiveModel):
     """
     Wraps around LSTMForecaster for training and inference.
-    Will integrate with feature engineering and data loaders later.
+    Integrates with feature engineering and data loaders.
     """
     def __init__(self, input_dim: int = 10, hidden_dim: int = 64, num_layers: int = 2, output_dim: int = 1, lr: float = 1e-3):
         self.model = LSTMForecaster(input_dim, hidden_dim, num_layers, output_dim)
@@ -99,3 +108,4 @@ if __name__ == "__main__":
     print("Training step loss:", loss)
 
     # In future parts, we’ll integrate real feature data, hyperparameter tuning, and Transformer models.
+
