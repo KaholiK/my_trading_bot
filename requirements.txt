@@ -4,6 +4,7 @@ httpx>=0.23.0
 pytest>=8.3.4
 anyio>=4.7.0
 torch>=1.13.0
+httpx>=0.23.0
 
 # Add other dependencies as needed
 
