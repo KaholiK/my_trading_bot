@@ -1,116 +1,132 @@
-# File: src/risk_management.py
-# Part 7: Risk Management & Portfolio Optimization
-#
-# This module ensures that trades made by the system are constrained by risk rules.
-# It can:
-# - Determine position sizes based on volatility and max risk parameters
-# - Apply stop-loss/take-profit logic
-# - Perform simple portfolio optimization to avoid overconcentration in one asset
-#
-# In future parts, we’ll integrate actual volatility calculations, correlation matrices,
-# and possibly a more advanced optimization algorithm (like mean-variance optimization or RL-based optimization).
+# src/risk_management.py
 
-import numpy as np
-from typing import Dict, Any, List
+import logging
+from typing import Dict
+from src.logging_monitoring import logger
 
 class RiskManager:
     """
-    The RiskManager enforces global and per-trade risk rules.
-    This includes:
-    - Max daily drawdown limit
-    - Position sizing based on volatility
-    - Stop-loss and take-profit calculations
+    Manages and enforces trading risk parameters.
     """
-    def __init__(self,
-                 initial_equity: float = 100000.0,
-                 max_daily_drawdown: float = 0.02,  # 2% of equity
-                 max_position_pct: float = 0.10,     # Max 10% of equity in one trade
-                 stop_loss_pct: float = 0.01,        # 1% stop loss per trade
-                 take_profit_pct: float = 0.03):     # 3% take profit per trade
-        self.initial_equity = initial_equity
-        self.current_equity = initial_equity
-        self.max_daily_drawdown = max_daily_drawdown
-        self.max_position_pct = max_position_pct
-        self.stop_loss_pct = stop_loss_pct
-        self.take_profit_pct = take_profit_pct
-        self.daily_high_equity = initial_equity
-        self.trades: List[Dict[str, Any]] = []
+    def __init__(
+        self,
+        max_position_size: float = 1.0,  # Maximum position size in BTC
+        max_drawdown: float = 0.05,     # Maximum allowed drawdown (5%)
+        stop_loss_percentage: float = 0.02  # Stop-loss at 2%
+    ):
+        """
+        Initialize the RiskManager.
+        
+        :param max_position_size: Maximum position size per trade.
+        :param max_drawdown: Maximum allowed drawdown from peak equity.
+        :param stop_loss_percentage: Percentage at which to trigger stop-loss.
+        """
+        self.max_position_size = max_position_size
+        self.max_drawdown = max_drawdown
+        self.stop_loss_percentage = stop_loss_percentage
+        self.current_position: Dict[str, float] = {}  # e.g., {"BTCUSDT": 0.5}
+        self.peak_equity = 10000.0  # Example starting equity
+        self.current_equity = self.peak_equity
 
     def update_equity(self, new_equity: float):
+        """
+        Update the current equity and adjust peak equity.
+        
+        :param new_equity: Updated equity value.
+        """
+        if new_equity > self.peak_equity:
+            self.peak_equity = new_equity
+            logger.info(f"New peak equity reached: {self.peak_equity}")
         self.current_equity = new_equity
-        if new_equity > self.daily_high_equity:
-            self.daily_high_equity = new_equity
+        logger.debug(f"Equity updated to: {self.current_equity}")
 
     def check_drawdown(self) -> bool:
         """
-        Check if daily drawdown limit is hit.
+        Check if the current equity has exceeded the maximum drawdown.
+        
+        :return: True if drawdown limit exceeded, False otherwise.
         """
-        drawdown = (self.daily_high_equity - self.current_equity) / self.daily_high_equity
-        return drawdown > self.max_daily_drawdown
-
-    def calculate_position_size(self, symbol: str, price: float, volatility: float = 0.02) -> float:
-        """
-        Calculate position size based on current equity and volatility.
-        A simple rule: invest max_position_pct of equity / (volatility factor).
-        More volatile instruments = smaller position sizes.
-        """
-        max_position_size = self.current_equity * self.max_position_pct / price
-        # Scale down by volatility: more volatile => smaller size
-        # If volatility = 0.02 (2%), we might reduce position by a factor of say (1 + 10*volatility)
-        # Just a placeholder heuristic
-        size_factor = (1 + 10 * volatility)
-        final_size = max_position_size / size_factor
-        return max(0.0, final_size)
-
-    def apply_stops(self, entry_price: float) -> Dict[str, float]:
-        """
-        Given an entry price, calculate stop_loss and take_profit levels.
-        """
-        stop_loss_price = entry_price * (1 - self.stop_loss_pct)
-        take_profit_price = entry_price * (1 + self.take_profit_pct)
-        return {"stop_loss": stop_loss_price, "take_profit": take_profit_price}
-
-class PortfolioOptimizer:
-    """
-    A basic portfolio optimizer that tries to maintain a balanced exposure.
-    In future parts, we might integrate a full mean-variance optimizer,
-    or factor-model-based optimization.
-    For now, a simple heuristic: if too much capital is concentrated in one asset,
-    reduce future allocations to that asset.
-    """
-    def __init__(self,
-                 max_concentration: float = 0.20):
-        # No single asset should exceed 20% of total portfolio value.
-        self.max_concentration = max_concentration
-        self.positions: Dict[str, float] = {}  # symbol -> position value
-
-    def update_positions(self, symbol: str, value: float):
-        self.positions[symbol] = value
-
-    def get_portfolio_value(self) -> float:
-        return sum(self.positions.values())
-
-    def can_increase_position(self, symbol: str, additional_value: float) -> bool:
-        total_val = self.get_portfolio_value() + additional_value
-        if total_val == 0:
+        drawdown = (self.peak_equity - self.current_equity) / self.peak_equity
+        logger.debug(f"Current drawdown: {drawdown * 100:.2f}%")
+        if drawdown > self.max_drawdown:
+            logger.warning(f"Drawdown exceeded: {drawdown * 100:.2f}% > {self.max_drawdown * 100}%")
             return True
-        # Check concentration
-        new_val_for_symbol = self.positions.get(symbol, 0.0) + additional_value
-        concentration = new_val_for_symbol / total_val
-        return concentration <= self.max_concentration
+        return False
 
+    def adjust_position_size(self, desired_size: float) -> float:
+        """
+        Adjust the desired position size based on risk parameters.
+        
+        :param desired_size: Desired position size.
+        :return: Adjusted position size.
+        """
+        adjusted_size = min(desired_size, self.max_position_size)
+        logger.debug(f"Desired position size: {desired_size}, Adjusted position size: {adjusted_size}")
+        return adjusted_size
+
+    def apply_stop_loss(self, symbol: str, entry_price: float, current_price: float) -> bool:
+        """
+        Determine whether to trigger a stop-loss based on current price.
+        
+        :param symbol: Trading symbol.
+        :param entry_price: Price at which the position was entered.
+        :param current_price: Current market price.
+        :return: True if stop-loss should be triggered, False otherwise.
+        """
+        loss = (entry_price - current_price) / entry_price
+        logger.debug(f"Stop-loss check for {symbol}: Loss = {loss * 100:.2f}%")
+        if loss >= self.stop_loss_percentage:
+            logger.info(f"Stop-loss triggered for {symbol}.")
+            return True
+        return False
+
+    def enforce_risk(self, symbol: str, desired_size: float) -> float:
+        """
+        Enforce risk parameters and adjust the position size accordingly.
+        
+        :param symbol: Trading symbol.
+        :param desired_size: Desired position size.
+        :return: Approved position size after risk checks.
+        """
+        if self.check_drawdown():
+            logger.error("Max drawdown exceeded. No new positions can be taken.")
+            return 0.0  # Prevent taking new positions
+        
+        approved_size = self.adjust_position_size(desired_size)
+        self.current_position[symbol] = approved_size
+        logger.info(f"Position for {symbol} set to {approved_size} BTC.")
+        return approved_size
+
+    def close_position(self, symbol: str):
+        """
+        Close an open position.
+        
+        :param symbol: Trading symbol.
+        """
+        if symbol in self.current_position:
+            logger.info(f"Closing position for {symbol} which was {self.current_position[symbol]} BTC.")
+            del self.current_position[symbol]
+        else:
+            logger.warning(f"No open position found for {symbol} to close.")
+
+# Example Usage
 if __name__ == "__main__":
-    # Example usage:
-    risk = RiskManager()
-    port = PortfolioOptimizer()
+    risk_manager = RiskManager(
+        max_position_size=0.5,
+        max_drawdown=0.10,  # 10%
+        stop_loss_percentage=0.03  # 3%
+    )
     
-    current_price = 150.0
-    pos_size = risk.calculate_position_size("AAPL", price=current_price, volatility=0.02)
-    stops = risk.apply_stops(entry_price=current_price)
-    print(f"Position size: {pos_size} shares, Stop Loss: {stops['stop_loss']}, Take Profit: {stops['take_profit']}")
-
-    # Update portfolio
-    position_value = pos_size * current_price
-    port.update_positions("AAPL", position_value)
-    can_add_more = port.can_increase_position("AAPL", additional_value=5000)
-    print("Can add more AAPL?:", can_add_more)
+    # Update equity based on trading performance
+    risk_manager.update_equity(9500.0)
+    
+    # Enforce risk before taking a new position
+    approved_size = risk_manager.enforce_risk("BTCUSDT", desired_size=0.7)
+    print(f"Approved position size for BTCUSDT: {approved_size} BTC")
+    
+    # Example stop-loss check
+    should_stop = risk_manager.apply_stop_loss("BTCUSDT", entry_price=10000.0, current_price=9700.0)
+    print(f"Should trigger stop-loss: {should_stop}")
+    
+    # Close a position
+    risk_manager.close_position("BTCUSDT")
