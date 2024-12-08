@@ -1,14 +1,10 @@
-# Exclude Python cache files
 __pycache__/
-*.pyc
-*.pyo
-
-# Exclude Git files
-.git/
-.gitignore
-
-# Exclude environment variables file
+*.py[cod]
+*$py.class
 .env
-
-# Exclude log files
-logs/
+.git
+.gitignore
+Dockerfile
+*.md
+*.log
+*.db
