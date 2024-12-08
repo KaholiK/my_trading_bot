@@ -1,123 +1,61 @@
 # src/rl_environment.py
 
-import gym
-from gym import spaces
 import numpy as np
-import pandas as pd
-from typing import Tuple
-from src.feature_engineering import FeatureEngineer
-from src.logging_monitoring import logger
+import logging
 
-class TradingEnv(gym.Env):
-    """
-    Custom Environment for Reinforcement Learning in Trading.
-    """
-    metadata = {'render.modes': ['human']}
+logger = logging.getLogger(__name__)
 
-    def __init__(self, data: pd.DataFrame, feature_engineer: FeatureEngineer):
-        super(TradingEnv, self).__init__()
-        
-        self.data = data.reset_index(drop=True)
-        self.feature_engineer = feature_engineer
-        self.current_step = 0
-        self.total_steps = len(data) - 1
-        
-        # Define action and observation space
-        # Actions: 0 = Hold, 1 = Buy, 2 = Sell
-        self.action_space = spaces.Discrete(3)
-        
-        # Observations: Feature vector
-        self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(self.feature_engineer.get_feature_dimension(),), dtype=np.float32
-        )
-        
-        # Initialize state
-        self.state = self._next_observation()
-        
-        # Initialize portfolio
-        self.initial_balance = 10000.0
+class RLEnvironment:
+    def __init__(self, initial_balance: float = 10000.0):
+        self.initial_balance = initial_balance
+        self.balance = initial_balance
+        self.position = 0.0  # Current position size
+        logger.info("RLEnvironment initialized with initial_balance=%.2f", self.initial_balance)
+    
+    def reset(self):
         self.balance = self.initial_balance
-        self.holding = 0.0  # Amount of BTC held
-        self.max_steps = self.total_steps
-        self.trades = []
-
-    def _next_observation(self) -> np.ndarray:
+        self.position = 0.0
+        logger.info("RLEnvironment reset.")
+        return self._get_state()
+    
+    def step(self, action: int, price: float):
         """
-        Get the next observation.
-        """
-        if self.current_step >= self.total_steps:
-            self.current_step = self.total_steps - 1  # Prevent overflow
+        Execute an action in the environment.
         
-        current_data = self.data.iloc[self.current_step:self.current_step + self.feature_engineer.lookback]
-        features = self.feature_engineer.generate_features(current_data)
-        obs = features.iloc[-1].values  # Latest features
-        logger.debug(f"Observation at step {self.current_step}: {obs}")
-        return obs
-
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, dict]:
+        :param action: 0 = Hold, 1 = Buy, 2 = Sell
+        :param price: Current price of the asset
+        :return: (next_state, reward, done, info)
         """
-        Execute one time step within the environment.
+        done = False
+        reward = 0.0
+        info = {}
         
-        :param action: Action taken by the agent.
-        :return: Tuple of (observation, reward, done, info)
-        """
-        current_price = self.data.loc[self.current_step, 'close']
-        logger.debug(f"Step {self.current_step}: Action {action}, Price {current_price}")
-
-        # Define transaction cost
-        transaction_cost = 0.001  # 0.1%
-
-        # Execute action
         if action == 1:  # Buy
-            if self.balance > 0:
-                buy_amount = self.balance / current_price
-                self.holding += buy_amount * (1 - transaction_cost)
-                logger.info(f"Bought {buy_amount * (1 - transaction_cost)} BTC at {current_price}")
-                self.balance = 0.0
-                self.trades.append(('buy', current_price))
+            if self.balance > price:
+                self.position += 1.0
+                self.balance -= price
+                logger.info("Executed Buy: position=%.2f, balance=%.2f", self.position, self.balance)
         elif action == 2:  # Sell
-            if self.holding > 0:
-                sell_amount = self.holding
-                self.balance += sell_amount * current_price * (1 - transaction_cost)
-                logger.info(f"Sold {sell_amount} BTC at {current_price}")
-                self.holding = 0.0
-                self.trades.append(('sell', current_price))
-        # Action 0: Hold, do nothing
-
-        # Calculate reward: change in portfolio value
-        portfolio_value = self.balance + self.holding * current_price
-        reward = portfolio_value - self.initial_balance
-        logger.debug(f"Reward: {reward}")
-
-        # Move to next step
-        self.current_step += 1
-        done = self.current_step >= self.max_steps
-        if done:
-            logger.info("Reached end of data. Episode done.")
-
-        # Update observation
-        self.state = self._next_observation()
-
-        return self.state, reward, done, {}
-
-    def reset(self) -> np.ndarray:
+            if self.position > 0:
+                self.position -= 1.0
+                self.balance += price
+                logger.info("Executed Sell: position=%.2f, balance=%.2f", self.position, self.balance)
+        
+        # Calculate reward as profit/loss
+        current_value = self.balance + self.position * price
+        reward = current_value - self.initial_balance
+        
+        # Optionally, set done based on certain conditions
+        if reward < -self.initial_balance * 0.2:  # 20% loss
+            done = True
+            logger.info("Environment done due to significant loss.")
+        
+        next_state = self._get_state()
+        return next_state, reward, done, info
+    
+    def _get_state(self):
         """
-        Reset the state of the environment to an initial state.
+        Get the current state of the environment.
         """
-        self.current_step = 0
-        self.balance = self.initial_balance
-        self.holding = 0.0
-        self.trades = []
-        self.state = self._next_observation()
-        logger.debug("Environment reset.")
-        return self.state
+        return np.array([self.balance, self.position])
 
-    def render(self, mode='human'):
-        """
-        Render the environment to the screen.
-        """
-        portfolio_value = self.balance + self.holding * self.data.loc[self.current_step, 'close']
-        print(f"Step: {self.current_step}")
-        print(f"Balance: {self.balance}")
-        print(f"Holding: {self.holding} BTC")
-        print(f"Portfolio Value: {portfolio_value}")
