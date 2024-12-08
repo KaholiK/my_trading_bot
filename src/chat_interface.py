@@ -1,77 +1,121 @@
-# tests/test_chat_interface.py
+from fastapi import FastAPI, HTTPException, Depends, status
+from pydantic import BaseModel, Field
+from typing import List
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+import secrets
+import os
+import openai
+import logging
+from .logging_monitoring import setup_logging
 
-import pytest
-from fastapi.testclient import TestClient
-from src.chat_interface import app
+# Setup logging
+setup_logging()
+logger = logging.getLogger(__name__)
 
-client = TestClient(app)
+app = FastAPI()
 
-def test_set_credentials():
-    """
-    Test setting credentials for a broker.
-    """
-    response = client.post(
-        "/set_credentials",
-        json={
-            "broker": "binance",
-            "api_key": "test_api_key",
-            "api_secret": "test_api_secret"
-        },
-        auth=("admin", "securepassword123")
-    )
-    assert response.status_code == 200, "API should return 200 for successful credential setting"
-    assert response.json()["message"] == "Credentials for binance set successfully"
+security = HTTPBasic()
 
-def test_set_credentials_existing():
-    """
-    Test setting credentials for a broker that already has credentials.
-    """
-    # First, set credentials
-    client.post(
-        "/set_credentials",
-        json={
-            "broker": "binance",
-            "api_key": "test_api_key",
-            "api_secret": "test_api_secret"
-        },
-        auth=("admin", "securepassword123")
-    )
-    # Update credentials
-    response = client.post(
-        "/set_credentials",
-        json={
-            "broker": "binance",
-            "api_key": "new_api_key",
-            "api_secret": "new_api_secret"
-        },
-        auth=("admin", "securepassword123")
-    )
-    assert response.status_code == 200, "API should return 200 for updating existing credentials"
-    assert response.json()["message"] == "Credentials for binance set successfully"
+# In-memory storage for credentials
+credentials_db = {}
 
-def test_get_credentials():
-    """
-    Test retrieving credentials for a broker.
-    """
-    # Ensure credentials are set
-    client.post(
-        "/set_credentials",
-        json={
-            "broker": "binance",
-            "api_key": "test_api_key",
-            "api_secret": "test_api_secret"
-        },
-        auth=("admin", "securepassword123")
-    )
-    response = client.get("/get_credentials/binance", auth=("admin", "securepassword123"))
-    assert response.status_code == 200, "API should return 200 for existing credentials"
-    assert "api_key" in response.json(), "API response should include 'api_key'"
-    assert "api_secret" in response.json(), "API response should include 'api_secret'"
+# Load OpenAI API key from environment variable
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    logger.error("OPENAI_API_KEY environment variable not set.")
+    raise RuntimeError("OPENAI_API_KEY environment variable not set.")
 
-def test_get_credentials_nonexistent():
+openai.api_key = OPENAI_API_KEY
+
+class CredentialInput(BaseModel):
+    broker: str = Field(..., examples={"example1": "binance", "example2": "coinbase"})
+    api_key: str = Field(..., examples={"example": "your_api_key"})
+    api_secret: str = Field(..., examples={"example": "your_api_secret"})
+
+class ChatInput(BaseModel):
+    prompt: str = Field(..., example="Generate a trading strategy for BTCUSD based on current market trends.")
+
+@app.post("/set_credentials", status_code=200)
+def set_credentials(credential: CredentialInput, credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, "admin")
+    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
+    if not (correct_username and correct_password):
+        logger.warning("Unauthorized access attempt to set_credentials.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    
+    credentials_db[credential.broker] = {
+        "api_key": credential.api_key,
+        "api_secret": credential.api_secret
+    }
+    logger.info(f"Credentials for {credential.broker} set successfully.")
+    return {"message": f"Credentials for {credential.broker} set successfully"}
+
+@app.get("/get_credentials/{broker}", status_code=200)
+def get_credentials(broker: str, credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, "admin")
+    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
+    if not (correct_username and correct_password):
+        logger.warning("Unauthorized access attempt to get_credentials.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    
+    if broker not in credentials_db:
+        logger.warning(f"Credentials for {broker} not found.")
+        raise HTTPException(status_code=404, detail=f"Credentials for {broker} not found.")
+    
+    logger.info(f"Credentials for {broker} retrieved successfully.")
+    return credentials_db[broker]
+
+@app.delete("/delete_credentials/{broker}", status_code=200)
+def delete_credentials(broker: str, credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, "admin")
+    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
+    if not (correct_username and correct_password):
+        logger.warning("Unauthorized access attempt to delete_credentials.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    
+    if broker in credentials_db:
+        del credentials_db[broker]
+        logger.info(f"Credentials for {broker} deleted successfully.")
+        return {"message": f"Credentials for {broker} deleted successfully"}
+    else:
+        logger.warning(f"Credentials for {broker} not found for deletion.")
+        raise HTTPException(status_code=404, detail=f"Credentials for {broker} not found.")
+
+@app.get("/list_exchanges", response_model=List[str], status_code=200)
+def list_exchanges(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = secrets.compare_digest(credentials.username, "admin")
+    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
+    if not (correct_username and correct_password):
+        logger.warning("Unauthorized access attempt to list_exchanges.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    
+    exchanges = list(credentials_db.keys())
+    logger.info("List of exchanges retrieved successfully.")
+    return exchanges
+
+@app.post("/chat", status_code=200)
+def chat(chat_input: ChatInput, credentials: HTTPBasicCredentials = Depends(security)):
     """
-    Test retrieving credentials for a broker with no stored credentials.
+    Chat endpoint that uses OpenAI's GPT model to generate responses based on user input.
     """
-    response = client.get("/get_credentials/unknown_broker", auth=("admin", "securepassword123"))
-    assert response.status_code == 404, "API should return 404 for missing credentials"
-    assert response.json()["detail"] == "Credentials for unknown_broker not found"  # Removed trailing period
+    correct_username = secrets.compare_digest(credentials.username, "admin")
+    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
+    if not (correct_username and correct_password):
+        logger.warning("Unauthorized access attempt to chat endpoint.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    
+    try:
+        logger.info(f"Received chat prompt: {chat_input.prompt}")
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant specialized in trading strategies."},
+                {"role": "user", "content": chat_input.prompt}
+            ]
+        )
+        reply = response.choices[0].message['content'].strip()
+        logger.info("Chat response generated successfully.")
+        return {"reply": reply}
+    except Exception as e:
+        logger.error(f"OpenAI API error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
