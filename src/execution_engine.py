@@ -1,53 +1,40 @@
-import threading
-from typing import List, Dict
+# src/execution_engine.py
+
 import logging
-import time
+from concurrent.futures import ThreadPoolExecutor
+from alpaca_trade_api import REST
 
 logger = logging.getLogger(__name__)
 
-class BinanceExecutionEngine:
+class AlpacaExecutionEngine:
     def __init__(self):
-        # Initialize any necessary variables, e.g., API client
-        logger.info("BinanceExecutionEngine initialized.")
+        self.api = REST('APCA-API-KEY-ID', 'APCA-API-SECRET-KEY', base_url='https://paper-api.alpaca.markets')
 
-    def execute_trade(self, trade: Dict) -> Dict:
+    def execute_trade(self, trade):
         """
-        Execute a single trade.
+        Executes a single trade.
         """
-        # Mock implementation: simulate trade execution
-        # Replace with actual Binance API calls
-        logger.info(f"Executing trade: {trade}")
-        # Simulate execution delay
-        time.sleep(1)
-        result = {
-            "symbol": trade["symbol"],
-            "quantity": trade["quantity"],
-            "price": trade["price"],
-            "status": "executed"
-        }
-        logger.info(f"Trade executed: {result}")
-        return result
+        try:
+            order = self.api.submit_order(
+                symbol=trade["symbol"],
+                qty=trade["quantity"],
+                side=trade["side"],
+                type='market',
+                time_in_force='gtc'
+            )
+            logger.info(f"Trade executed: {trade}")
+            return {"symbol": trade["symbol"], "quantity": trade["quantity"], "price": trade["price"], "status": "executed"}
+        except Exception as e:
+            logger.error(f"Failed to execute trade {trade}: {e}")
+            return {"symbol": trade["symbol"], "quantity": trade["quantity"], "price": trade["price"], "status": "failed"}
 
-    def execute_trades_concurrently(self, trades: List[Dict]) -> List[Dict]:
+    def execute_trades_concurrently(self, trades):
         """
-        Execute multiple trades concurrently.
+        Executes multiple trades concurrently.
         """
         results = []
-        threads = []
-        logger.info(f"Starting concurrent execution of {len(trades)} trades.")
-
-        def execute_and_store(trade):
-            result = self.execute_trade(trade)
-            results.append(result)
-
-        for trade in trades:
-            thread = threading.Thread(target=execute_and_store, args=(trade,))
-            thread.start()
-            threads.append(thread)
-
-        for thread in threads:
-            thread.join()
-
-        logger.info("All trades executed concurrently.")
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(self.execute_trade, trade) for trade in trades]
+            for future in futures:
+                results.append(future.result())
         return results
-
