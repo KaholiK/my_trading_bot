@@ -1,117 +1,196 @@
-# File: src/execution_engine.py
-# Part 8: Execution & Low-Latency Trading Engine
-#
-# This module handles order placement, modification, and cancellation.
-# It connects to various broker APIs/exchanges:
-# - Crypto (Binance, Coinbase)
-# - Futures (Rithmic, Tradovate)
-# - Prop firm brokers (e.g., Eightcap, LMAX)
-#
-# We'll keep this initial version simple and expand it later with actual API calls,
-# authentication flows, and order status tracking.
+# src/execution_engine.py
 
 import time
-import requests
-import hmac
-import hashlib
-from typing import Dict, Any, Optional
+import uuid
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Optional, List
 
-class ExecutionEngine:
+class ExecutionEngine(ABC):
     """
     Abstract base class for execution engines.
-    Implementations should provide:
-    - send_order(symbol, side, quantity, order_type, price)
-    - cancel_order(order_id)
-    - get_order_status(order_id)
+    Defines the interface for sending, closing, and monitoring trades.
     """
     def __init__(self):
         self.api_keys: Dict[str, str] = {}  # store exchange-specific API keys
         self.secret_keys: Dict[str, str] = {}
         self.auth_tokens: Dict[str, str] = {}  # For brokers that use OAuth tokens etc.
+        self.open_trades: List[Dict[str, Any]] = []  # List to track open trades
 
     def set_credentials(self, exchange: str, api_key: str, secret_key: str):
         self.api_keys[exchange] = api_key
         self.secret_keys[exchange] = secret_key
 
+    @abstractmethod
     def send_order(self, symbol: str, side: str, quantity: float, order_type: str, price: Optional[float]) -> str:
-        raise NotImplementedError
+        """
+        Place an order and return a unique trade ID.
+        """
+        pass
 
+    @abstractmethod
     def cancel_order(self, order_id: str) -> bool:
-        raise NotImplementedError
+        """
+        Cancel an existing order by trade ID.
+        """
+        pass
 
+    @abstractmethod
     def get_order_status(self, order_id: str) -> Dict[str, Any]:
-        raise NotImplementedError
+        """
+        Retrieve the status of an order by trade ID.
+        """
+        pass
+
+    def execute_trade(self, symbol: str, side: str, quantity: float, order_type: str, price: Optional[float]) -> Dict[str, Any]:
+        """
+        Execute a trade by sending an order and tracking it.
+        """
+        try:
+            trade_id = self.send_order(symbol, side, quantity, order_type, price)
+            trade = {
+                "trade_id": trade_id,
+                "symbol": symbol,
+                "side": side,
+                "quantity": quantity,
+                "order_type": order_type,
+                "price": price,
+                "status": "OPEN",
+                "timestamp": time.time()
+            }
+            self.open_trades.append(trade)
+            return {"status": "SUCCESS", "trade_id": trade_id}
+        except Exception as e:
+            return {"status": "FAILURE", "message": str(e)}
+
+    def close_trade(self, trade_id: str) -> Dict[str, Any]:
+        """
+        Close an open trade by sending a cancellation and updating its status.
+        """
+        try:
+            success = self.cancel_order(trade_id)
+            if success:
+                for trade in self.open_trades:
+                    if trade["trade_id"] == trade_id:
+                        trade["status"] = "CLOSED"
+                        trade["close_timestamp"] = time.time()
+                        break
+                return {"status": "SUCCESS", "trade_id": trade_id}
+            else:
+                return {"status": "FAILURE", "message": "Failed to cancel the order."}
+        except Exception as e:
+            return {"status": "FAILURE", "message": str(e)}
+
+    def monitor_open_trades(self) -> List[Dict[str, Any]]:
+        """
+        Monitor all open trades and update their statuses.
+        """
+        updated_trades = []
+        for trade in self.open_trades:
+            status = self.get_order_status(trade["trade_id"])
+            trade["status"] = status.get("status", trade["status"])
+            updated_trades.append(trade)
+        return updated_trades
 
 class BinanceExecutionEngine(ExecutionEngine):
     """
-    A placeholder Binance execution engine.
-    In reality, we would sign requests with HMAC, send them to Binance REST endpoints,
-    handle WebSocket updates for order statuses, etc.
+    Binance execution engine with mock implementations.
     """
     BASE_URL = "https://api.binance.com"
 
     def send_order(self, symbol: str, side: str, quantity: float, order_type: str, price: Optional[float]) -> str:
-        # Placeholder logic
-        # In a real scenario, we would construct a query, sign it with secret_key, and send a POST request.
-        # Example endpoint: POST /api/v3/order
-        # For now, just return a mock order_id
-        order_id = f"BINANCE_{int(time.time()*1000)}"
+        # Placeholder: In reality, you'd use Binance's API to place an order.
+        # Here, we simulate order placement by generating a unique trade ID.
+        trade_id = f"BINANCE_{uuid.uuid4().hex}"
         print(f"[Binance] Sending {order_type} order: {side} {quantity} {symbol} @ {price if price else 'MARKET'}")
-        return order_id
+        return trade_id
 
     def cancel_order(self, order_id: str) -> bool:
-        # Mock cancel
-        print(f"[Binance] Cancel order: {order_id}")
+        # Placeholder: Simulate successful cancellation
+        print(f"[Binance] Canceling order: {order_id}")
         return True
 
     def get_order_status(self, order_id: str) -> Dict[str, Any]:
-        # Mock status
-        return {"order_id": order_id, "status": "FILLED"}
+        # Placeholder: Simulate order status retrieval
+        # Randomly assign status for demonstration purposes
+        import random
+        status = random.choice(["OPEN", "FILLED", "CANCELED"])
+        return {"order_id": order_id, "status": status}
+
+class CoinbaseExecutionEngine(ExecutionEngine):
+    """
+    Coinbase execution engine with mock implementations.
+    """
+    BASE_URL = "https://api.coinbase.com"
+
+    def send_order(self, symbol: str, side: str, quantity: float, order_type: str, price: Optional[float]) -> str:
+        trade_id = f"COINBASE_{uuid.uuid4().hex}"
+        print(f"[Coinbase] Sending {order_type} order: {side} {quantity} {symbol} @ {price if price else 'MARKET'}")
+        return trade_id
+
+    def cancel_order(self, order_id: str) -> bool:
+        print(f"[Coinbase] Canceling order: {order_id}")
+        return True
+
+    def get_order_status(self, order_id: str) -> Dict[str, Any]:
+        import random
+        status = random.choice(["OPEN", "FILLED", "CANCELED"])
+        return {"order_id": order_id, "status": status}
 
 class FuturesExecutionEngine(ExecutionEngine):
     """
-    Placeholder for a futures broker (e.g., via Rithmic or Tradovate API).
-    In a real scenario, might use FIX protocol or broker's REST API.
+    Futures broker execution engine with mock implementations.
     """
     def send_order(self, symbol: str, side: str, quantity: float, order_type: str, price: Optional[float]) -> str:
-        order_id = f"FUT_{int(time.time()*1000)}"
+        trade_id = f"FUTURES_{uuid.uuid4().hex}"
         print(f"[Futures] Sending {order_type} order: {side} {quantity} {symbol} @ {price if price else 'MARKET'}")
-        return order_id
+        return trade_id
 
     def cancel_order(self, order_id: str) -> bool:
-        print(f"[Futures] Cancel order: {order_id}")
+        print(f"[Futures] Canceling order: {order_id}")
         return True
 
     def get_order_status(self, order_id: str) -> Dict[str, Any]:
-        return {"order_id": order_id, "status": "PENDING"}
+        import random
+        status = random.choice(["OPEN", "FILLED", "CANCELED"])
+        return {"order_id": order_id, "status": status}
 
 class PropFirmExecutionEngine(ExecutionEngine):
     """
-    Placeholder for prop firm broker execution.
-    Many prop firms use white-labeled solutions (e.g., Eightcap).
-    We'll simulate sending an order and assume immediate fill.
+    Prop firm broker execution engine with mock implementations.
     """
     def send_order(self, symbol: str, side: str, quantity: float, order_type: str, price: Optional[float]) -> str:
-        order_id = f"PROP_{int(time.time()*1000)}"
+        trade_id = f"PROP_FIRM_{uuid.uuid4().hex}"
         print(f"[PropFirm] Sending {order_type} order: {side} {quantity} {symbol}")
-        return order_id
+        return trade_id
 
     def cancel_order(self, order_id: str) -> bool:
-        print(f"[PropFirm] Cancel order: {order_id}")
+        print(f"[PropFirm] Canceling order: {order_id}")
         return True
 
     def get_order_status(self, order_id: str) -> Dict[str, Any]:
-        return {"order_id": order_id, "status": "FILLED"}
+        import random
+        status = random.choice(["OPEN", "FILLED", "CANCELED"])
+        return {"order_id": order_id, "status": status}
 
 if __name__ == "__main__":
     # Example usage:
     binance_engine = BinanceExecutionEngine()
-    binance_engine.set_credentials("binance", "api_key_here", "secret_key_here")
-    oid = binance_engine.send_order("BTCUSDT", "BUY", 0.1, "MARKET", None)
-    status = binance_engine.get_order_status(oid)
-    print("Order Status:", status)
-
-    futures_engine = FuturesExecutionEngine()
-    oid_fut = futures_engine.send_order("ESZ4", "SELL", 1, "LIMIT", 4300.0)
-    fut_status = futures_engine.get_order_status(oid_fut)
-    print("Futures Order Status:", fut_status)
+    binance_engine.set_credentials("binance", "your_binance_api_key", "your_binance_secret_key")
+    trade_result = binance_engine.execute_trade(
+        symbol="BTCUSDT",
+        side="buy",
+        quantity=0.1,
+        order_type="MARKET",
+        price=None
+    )
+    print("Trade Execution Result:", trade_result)
+    
+    # Monitor open trades
+    open_trades = binance_engine.monitor_open_trades()
+    print("Open Trades:", open_trades)
+    
+    # Close a trade
+    if open_trades:
+        trade_id_to_close = open_trades[0]["trade_id"]
+        close_result = binance_engine.close_trade(trade_id=trade_id_to_close)
+        print("Trade Close Result:", close_result)
