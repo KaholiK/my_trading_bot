@@ -9,3 +9,4 @@ requests
 websocket-client
 gym
 stable-baselines3
+pytest
