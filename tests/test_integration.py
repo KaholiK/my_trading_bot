@@ -120,3 +120,9 @@ async def test_real_data_integration():
     trade_result = await execution_engine.execute_trade(prediction)
 
     assert trade_result.get("status") == "SUCCESS", "Live trade execution should succeed"
+
+# Original import causing error
+from src.predictive_models import PredictiveModel
+
+# Updated import
+from src.predictive_models import TimeSeriesPredictor
