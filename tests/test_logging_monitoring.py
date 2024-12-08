@@ -1,17 +1,16 @@
 # tests/test_logging_monitoring.py
 
 import pytest
+import logging
 from src.logging_monitoring import setup_logging, log_event, monitor_metrics
 
-def test_setup_logging():
+def test_setup_logging(caplog):
     """
     Test if logging is set up correctly.
     """
-    try:
-        setup_logging()
-        log_event("Test event")
-    except Exception as e:
-        pytest.fail(f"Logging setup failed with exception: {e}")
+    setup_logging()
+    log_event("Test event")
+    assert "Test event" in caplog.text, "Log should contain the test event"
 
 def test_log_event(caplog):
     """
@@ -20,7 +19,7 @@ def test_log_event(caplog):
     setup_logging()
     with caplog.at_level(logging.INFO):
         log_event("Sample log event")
-    assert "Sample log event" in caplog.text
+    assert "Sample log event" in caplog.text, "Log should contain the sample event"
 
 def test_monitor_metrics():
     """
