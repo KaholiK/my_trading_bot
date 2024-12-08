@@ -1,16 +1,13 @@
-# File: src/logging_monitoring.py
-# Part 10: Testing, Logging, & Monitoring
-#
-# This module sets up:
-# - A logging configuration that all other modules can use.
-# - A placeholder for metrics collection, which we could expand with Prometheus clients.
-#
-# We’ll use Python’s logging library. In future parts, we’ll add more complex handlers (e.g., rotating file handlers,
-# log to a remote ELK stack, etc.), as well as integrate real metrics exporters.
+# src/logging_monitoring.py
 
 import logging
 from typing import Dict, Any
 import time
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from fastapi import FastAPI, Response
+
+# Initialize FastAPI app for metrics endpoint
+app_metrics = FastAPI(title="AI Trading Bot Metrics")
 
 # Configure root logger
 logger = logging.getLogger("AI_Trading_Bot")
@@ -23,45 +20,75 @@ formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
+# Metrics Setup
+REQUEST_COUNT = Counter(
+    "requests_total", "Total number of requests received", ["method", "endpoint"]
+)
+REQUEST_DURATION = Histogram(
+    "request_duration_seconds", "Request duration in seconds", ["method", "endpoint"]
+)
+TRADE_EXECUTIONS = Counter(
+    "trade_executions_total", "Total number of trade executions", ["status"]
+)
+
+def log_event(event: str, level: str = "info"):
+    """
+    Logs an event at the specified logging level.
+    """
+    if level.lower() == "debug":
+        logger.debug(event)
+    elif level.lower() == "warning":
+        logger.warning(event)
+    elif level.lower() == "error":
+        logger.error(event)
+    else:
+        logger.info(event)
+
 class MetricsCollector:
     """
-    Placeholder class for metrics.
-    In a real scenario, integrate prometheus_client (Gauge, Counter, Histogram)
-    and expose metrics on an endpoint.
+    Collects and manages metrics for the trading bot.
     """
     def __init__(self):
-        self.metrics: Dict[str, float] = {}
+        pass  # Metrics are already initialized globally
 
-    def increment(self, name: str, amount: float = 1.0):
-        if name not in self.metrics:
-            self.metrics[name] = 0.0
-        self.metrics[name] += amount
-        logger.debug(f"Incremented metric {name} by {amount}, total: {self.metrics[name]}")
+    def increment_request_count(self, method: str, endpoint: str):
+        REQUEST_COUNT.labels(method=method, endpoint=endpoint).inc()
 
-    def set_metric(self, name: str, value: float):
-        self.metrics[name] = value
-        logger.debug(f"Set metric {name} to {value}")
+    def observe_request_duration(self, method: str, endpoint: str, duration: float):
+        REQUEST_DURATION.labels(method=method, endpoint=endpoint).observe(duration)
 
-    def get_metric(self, name: str) -> float:
-        return self.metrics.get(name, 0.0)
+    def increment_trade_executions(self, status: str):
+        TRADE_EXECUTIONS.labels(status=status).inc()
 
-    def report_metrics(self) -> Dict[str, float]:
-        return dict(self.metrics)
+metrics_collector = MetricsCollector()
 
-metrics = MetricsCollector()
+@app_metrics.middleware("http")
+async def metrics_middleware(request, call_next):
+    """
+    Middleware to collect metrics for each request.
+    """
+    method = request.method
+    endpoint = request.url.path
 
-def log_performance(event_name: str, start_time: float):
-    elapsed = time.time() - start_time
-    logger.info(f"Event {event_name} took {elapsed:.4f}s")
-    metrics.set_metric(f"event_{event_name}_time", elapsed)
-    
-# src/logging_monitoring.py
+    start_time = time.time()
+    response = await call_next(request)
+    duration = time.time() - start_time
 
-import logging
+    metrics_collector.increment_request_count(method, endpoint)
+    metrics_collector.observe_request_duration(method, endpoint, duration)
+
+    return response
+
+@app_metrics.get("/metrics")
+async def get_metrics():
+    """
+    Endpoint to expose metrics for Prometheus.
+    """
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 def setup_logging():
     """
-    Configures the logging settings for the application.
+    Initializes logging configurations.
     """
     logging.basicConfig(
         level=logging.INFO,
@@ -71,18 +98,18 @@ def setup_logging():
         ]
     )
 
-def log_event(event: str):
+def log_trade_execution(status: str):
     """
-    Logs an event with INFO level.
+    Logs a trade execution event.
     """
-    logger = logging.getLogger(__name__)
-    logger.info(event)
+    metrics_collector.increment_trade_executions(status)
+    if status == "SUCCESS":
+        logger.info("Trade executed successfully.")
+    else:
+        logger.error("Trade execution failed.")
 
-def monitor_metrics():
-    """
-    Monitors system metrics. Placeholder for actual monitoring logic.
-    """
-    pass  # Implement monitoring logic here
+# Ensure that this module does not run as a standalone script
+if __name__ == "__main__":
+    setup_logging()
+    log_event("Logging and Monitoring Module Initialized", "info")
 
-
-__all__ = ["setup_logging", "log_event", "monitor_metrics"]
