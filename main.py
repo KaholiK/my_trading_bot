@@ -1,20 +1,21 @@
+# main.py
+
+from src.logging_monitoring import setup_prometheus, setup_logging
+from fastapi import FastAPI
 import uvicorn
-from src import app
-from src.continuous_learning import ContinuousLearning
-import os
-import signal
-import sys
 
-# Initialize Continuous Learning with desired symbol
-continuous_learning = ContinuousLearning(symbol='BTCUSDT')  # Change symbol as needed
+# Initialize logging
+logger = setup_logging()
 
-def shutdown_handler(*args):
-    continuous_learning.shutdown()
-    sys.exit(0)
+# Initialize Prometheus metrics
+setup_prometheus(port=8001)
 
-# Register shutdown handler
-for sig in (signal.SIGINT, signal.SIGTERM):
-    signal.signal(sig, shutdown_handler)
+app = FastAPI()
+
+# Define your routes here
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
