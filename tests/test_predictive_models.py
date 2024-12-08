@@ -1,49 +1,44 @@
+# tests/test_predictive_models.py
+
 import pytest
-import pandas as pd
-import numpy as np
-from src.predictive_models import PredictiveModel
+import torch
+from src.predictive_models import TimeSeriesPredictor
 
-@pytest.fixture
-def mock_data():
+def test_train_step():
     """
-    Create mock data for testing predictive models.
+    Test the train_step method of TimeSeriesPredictor.
     """
-    return pd.DataFrame({
-        "feature1": np.random.rand(100),
-        "feature2": np.random.rand(100),
-        "target": np.random.randint(0, 2, 100),
-    })
+    predictor = TimeSeriesPredictor()
+    X = torch.randn(16, 30, 10)  # Example input
+    y = torch.randn(16, 1)       # Example target
+    loss = predictor.train_step(X, y)
+    assert isinstance(loss, float), "Loss should be a float value"
 
-def test_model_training(mock_data):
+def test_evaluate():
     """
-    Test if the predictive model can be trained successfully.
+    Test the evaluate method of TimeSeriesPredictor.
     """
-    model = PredictiveModel()
-    result = model.train(mock_data[["feature1", "feature2"]], mock_data["target"])
-    
-    assert result["status"] == "success", "Model training should return success"
-    assert result["model"] is not None, "Trained model should not be None"
+    predictor = TimeSeriesPredictor()
+    X = torch.randn(16, 30, 10)  # Example input
+    y = torch.randn(16, 1)       # Example target
+    loss = predictor.evaluate(X, y)
+    assert isinstance(loss, float), "Loss should be a float value"
 
-def test_model_prediction(mock_data):
+def test_predict():
     """
-    Test if the predictive model makes predictions successfully.
+    Test the predict method of TimeSeriesPredictor.
     """
-    model = PredictiveModel()
-    model.train(mock_data[["feature1", "feature2"]], mock_data["target"])
-    
-    predictions = model.predict(mock_data[["feature1", "feature2"]])
-    
-    assert len(predictions) == len(mock_data), "Number of predictions should match number of inputs"
-    assert all(pred in [0, 1] for pred in predictions), "Predictions should only contain valid classes"
+    predictor = TimeSeriesPredictor()
+    X = torch.randn(16, 30, 10)  # Example input
+    predictions = predictor.predict(X)
+    assert isinstance(predictions, np.ndarray), "Predictions should be a numpy array"
+    assert predictions.shape == (16, 1), "Predictions shape mismatch"
 
-def test_model_evaluation(mock_data):
+def test_predict_with_invalid_input():
     """
-    Test if the model evaluation metrics are calculated correctly.
+    Test the predict method with invalid input to ensure it raises appropriate errors.
     """
-    model = PredictiveModel()
-    model.train(mock_data[["feature1", "feature2"]], mock_data["target"])
-    
-    metrics = model.evaluate(mock_data[["feature1", "feature2"]], mock_data["target"])
-    
-    assert "accuracy" in metrics, "Evaluation should return accuracy"
-    assert 0 <= metrics["accuracy"] <= 1, "Accuracy should be between 0 and 1"
+    predictor = TimeSeriesPredictor()
+    invalid_X = {"invalid_key": 123}
+    with pytest.raises(AttributeError):
+        predictor.predict(invalid_X)
