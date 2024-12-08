@@ -192,4 +192,3 @@ async def send_notification(message: str = Body(..., example="Trade executed suc
     await broadcast_notification(notification)
     logger.info("Custom notification sent to all clients.")
     return {"status": "success", "message": "Notification sent to all clients."}
-
