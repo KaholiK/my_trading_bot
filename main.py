@@ -35,11 +35,23 @@ decision_fusion = DecisionFusion(strategies=[scalping, swing_trading])
 
 # Example route to trigger trading decision
 @app.post("/trade")
+from datetime import datetime, timedelta
+from fastapi import HTTPException
+
+@app.post("/trade")
 def trigger_trade(symbol: str = "AAPL"):
-    # Fetch latest market data
-    market_data = execution_engine.api.get_barset(symbol, 'minute', limit=100).df[symbol]
-    df = market_data.reset_index()
-    df.rename(columns={'time': 'timestamp', 'close': 'price'}, inplace=True)
+    # Fetch latest market data using the updated get_bars method
+    end_time = datetime.utcnow()
+    start_time = end_time - timedelta(minutes=100)
+    try:
+        bars = execution_engine.api.get_bars(symbol, 'minute', start=start_time.isoformat(), end=end_time.isoformat())
+        df = pd.DataFrame([{
+            'timestamp': bar.t,
+            'price': bar.c
+        } for bar in bars])
+    except Exception as e:
+        logger.error(f"Error fetching market data: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch market data")
     
     # Feature Engineering
     fe = FeatureEngineer()
@@ -61,6 +73,8 @@ def trigger_trade(symbol: str = "AAPL"):
     
     # Decide and trade using RL agent
     result = execution_engine.decide_and_trade(state)
+    
+    return {"trade_result": result, "action": action, "symbol": symbol}
     
     return {"trade_result": result, "action": action, "symbol": symbol}
 
