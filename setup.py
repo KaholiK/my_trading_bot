@@ -5,8 +5,8 @@ from setuptools import setup, find_packages
 setup(
     name='my_trading_bot',
     version='1.0.0',
-    author='Your Name',  # Replace with your actual name
-    author_email='your.email@example.com',  # Replace with your actual email
+    author=kaholik,  # Replace with your actual name
+    author_email=kaholisk@gmail.com,  # Replace with your actual email
     description='A powerful AI-driven trading bot with web access, continuous learning, and strategy generation using OpenAI.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
