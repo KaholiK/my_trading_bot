@@ -1,121 +1,63 @@
-from fastapi import FastAPI, HTTPException, Depends, status
-from pydantic import BaseModel, Field
-from typing import List
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-import secrets
+# src/chat_interface.py
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from src.execution_engine import AlpacaExecutionEngine
+from src.config import ALPACA_API_KEY, ALPACA_API_SECRET
+from src.logging_monitoring import logger
 import os
-import openai
-import logging
-from .logging_monitoring import setup_logging
 
-# Setup logging
-setup_logging()
-logger = logging.getLogger(__name__)
+router = APIRouter()
 
-app = FastAPI()
+# Initialize Execution Engine
+BASE_URL = "https://paper-api.alpaca.markets"
+execution_engine = AlpacaExecutionEngine(api_key=ALPACA_API_KEY, api_secret=ALPACA_API_SECRET, base_url=BASE_URL, device='cpu')
 
-security = HTTPBasic()
-
-# In-memory storage for credentials
-credentials_db = {}
-
-# Load OpenAI API key from environment variable
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    logger.error("OPENAI_API_KEY environment variable not set.")
-    raise RuntimeError("OPENAI_API_KEY environment variable not set.")
-
-openai.api_key = OPENAI_API_KEY
-
-class CredentialInput(BaseModel):
-    broker: str = Field(..., examples={"example1": "binance", "example2": "coinbase"})
-    api_key: str = Field(..., examples={"example": "your_api_key"})
-    api_secret: str = Field(..., examples={"example": "your_api_secret"})
-
-class ChatInput(BaseModel):
-    prompt: str = Field(..., example="Generate a trading strategy for BTCUSD based on current market trends.")
-
-@app.post("/set_credentials", status_code=200)
-def set_credentials(credential: CredentialInput, credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = secrets.compare_digest(credentials.username, "admin")
-    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
-    if not (correct_username and correct_password):
-        logger.warning("Unauthorized access attempt to set_credentials.")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    
-    credentials_db[credential.broker] = {
-        "api_key": credential.api_key,
-        "api_secret": credential.api_secret
-    }
-    logger.info(f"Credentials for {credential.broker} set successfully.")
-    return {"message": f"Credentials for {credential.broker} set successfully"}
-
-@app.get("/get_credentials/{broker}", status_code=200)
-def get_credentials(broker: str, credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = secrets.compare_digest(credentials.username, "admin")
-    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
-    if not (correct_username and correct_password):
-        logger.warning("Unauthorized access attempt to get_credentials.")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    
-    if broker not in credentials_db:
-        logger.warning(f"Credentials for {broker} not found.")
-        raise HTTPException(status_code=404, detail=f"Credentials for {broker} not found.")
-    
-    logger.info(f"Credentials for {broker} retrieved successfully.")
-    return credentials_db[broker]
-
-@app.delete("/delete_credentials/{broker}", status_code=200)
-def delete_credentials(broker: str, credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = secrets.compare_digest(credentials.username, "admin")
-    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
-    if not (correct_username and correct_password):
-        logger.warning("Unauthorized access attempt to delete_credentials.")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    
-    if broker in credentials_db:
-        del credentials_db[broker]
-        logger.info(f"Credentials for {broker} deleted successfully.")
-        return {"message": f"Credentials for {broker} deleted successfully"}
-    else:
-        logger.warning(f"Credentials for {broker} not found for deletion.")
-        raise HTTPException(status_code=404, detail=f"Credentials for {broker} not found.")
-
-@app.get("/list_exchanges", response_model=List[str], status_code=200)
-def list_exchanges(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = secrets.compare_digest(credentials.username, "admin")
-    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
-    if not (correct_username and correct_password):
-        logger.warning("Unauthorized access attempt to list_exchanges.")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    
-    exchanges = list(credentials_db.keys())
-    logger.info("List of exchanges retrieved successfully.")
-    return exchanges
-
-@app.post("/chat", status_code=200)
-def chat(chat_input: ChatInput, credentials: HTTPBasicCredentials = Depends(security)):
-    """
-    Chat endpoint that uses OpenAI's GPT model to generate responses based on user input.
-    """
-    correct_username = secrets.compare_digest(credentials.username, "admin")
-    correct_password = secrets.compare_digest(credentials.password, "securepassword123")
-    if not (correct_username and correct_password):
-        logger.warning("Unauthorized access attempt to chat endpoint.")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-    
-    try:
-        logger.info(f"Received chat prompt: {chat_input.prompt}")
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant specialized in trading strategies."},
-                {"role": "user", "content": chat_input.prompt}
-            ]
+# Authentication Dependency
+def authenticate(username: str, password: str):
+    # Implement authentication logic
+    if username != "admin" or password != "securepassword123":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
         )
-        reply = response.choices[0].message['content'].strip()
-        logger.info("Chat response generated successfully.")
-        return {"reply": reply}
-    except Exception as e:
-        logger.error(f"OpenAI API error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+
+# Pydantic Models
+class CredentialsInput(BaseModel):
+    broker: str
+    api_key: str
+    api_secret: str
+
+class TradeCommand(BaseModel):
+    symbol: str
+    action: str
+    quantity: int
+
+@router.post("/set_credentials")
+def set_credentials(credentials: CredentialsInput, username: str = Depends(authenticate)):
+    # Securely store credentials, e.g., in environment variables or encrypted storage
+    os.environ[f"{credentials.broker.upper()}_API_KEY"] = credentials.api_key
+    os.environ[f"{credentials.broker.upper()}_API_SECRET"] = credentials.api_secret
+    logger.info(f"Credentials for {credentials.broker} set successfully.")
+    return {"message": f"Credentials for {credentials.broker} set successfully"}
+
+@router.get("/get_credentials/{broker}")
+def get_credentials(broker: str, username: str = Depends(authenticate)):
+    api_key = os.getenv(f"{broker.upper()}_API_KEY")
+    api_secret = os.getenv(f"{broker.upper()}_API_SECRET")
+    if not api_key or not api_secret:
+        raise HTTPException(status_code=404, detail=f"Credentials for {broker} not found")
+    return {"api_key": api_key, "api_secret": api_secret}
+
+@router.post("/execute_trade")
+def execute_trade(command: TradeCommand, username: str = Depends(authenticate)):
+    # Execute trade based on command
+    trade = {
+        "symbol": command.symbol,
+        "quantity": command.quantity,
+        "action": command.action,
+        "price": 0  # Placeholder, implement actual price retrieval
+    }
+    result = execution_engine.execute_trade(trade)
+    return {"trade_result": result}
