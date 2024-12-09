@@ -78,3 +78,32 @@ def query_performance(query: PerformanceQuery, username: str = Depends(authentic
         return {"portfolio_value": risk_manager.portfolio_value}
     else:
         raise HTTPException(status_code=400, detail="Invalid performance metric")
+
+
+# src/chat_interface.py
+
+from cryptography.fernet import Fernet
+
+# Generate a key and instantiate a Fernet instance
+# In production, store this key securely and do not hardcode
+key = Fernet.generate_key()
+cipher_suite = Fernet(key)
+
+@router.post("/set_credentials")
+def set_credentials(credentials: CredentialsInput, username: str = Depends(authenticate)):
+    encrypted_api_key = cipher_suite.encrypt(credentials.api_key.encode()).decode()
+    encrypted_api_secret = cipher_suite.encrypt(credentials.api_secret.encode()).decode()
+    os.environ[f"{credentials.broker.upper()}_ENCRYPTED_API_KEY"] = encrypted_api_key
+    os.environ[f"{credentials.broker.upper()}_ENCRYPTED_API_SECRET"] = encrypted_api_secret
+    logger.info(f"Credentials for {credentials.broker} set successfully.")
+    return {"message": f"Credentials for {credentials.broker} set successfully"}
+
+@router.get("/get_credentials/{broker}")
+def get_credentials(broker: str, username: str = Depends(authenticate)):
+    encrypted_api_key = os.getenv(f"{broker.upper()}_ENCRYPTED_API_KEY")
+    encrypted_api_secret = os.getenv(f"{broker.upper()}_ENCRYPTED_API_SECRET")
+    if not encrypted_api_key or not encrypted_api_secret:
+        raise HTTPException(status_code=404, detail=f"Credentials for {broker} not found")
+    api_key = cipher_suite.decrypt(encrypted_api_key.encode()).decode()
+    api_secret = cipher_suite.decrypt(encrypted_api_secret.encode()).decode()
+    return {"api_key": api_key, "api_secret": api_secret}
