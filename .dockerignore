@@ -1,10 +1,4 @@
-__pycache__/
-*.py[cod]
-*$py.class
+__pycache__
+*.pyc
 .env
 .git
-.gitignore
-Dockerfile
-*.md
-*.log
-*.db
