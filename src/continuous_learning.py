@@ -1,94 +1,104 @@
-import logging
-from apscheduler.schedulers.background import BackgroundScheduler
-from src.data_ingestion import DataIngestion
-from src.feature_engineering import FeatureEngineer
-from src.predictive_models import TimeSeriesPredictor
+# src/continuous_learning.py
+
+import numpy as np
 import torch
-import pandas as pd
-import os
+import torch.nn as nn
+import torch.optim as optim
+from collections import deque
+import random
+import logging
 
 logger = logging.getLogger(__name__)
 
-class ContinuousLearning:
-    def __init__(self, symbol: str):
-        self.symbol = symbol
-        self.data_ingestion = DataIngestion(symbol=self.symbol)
-        self.feature_engineer = FeatureEngineer()
-        self.model_path = f"models/{self.symbol}_predictor.pt"
-        self.predictor = TimeSeriesPredictor(input_dim=1)  # Adjust input_dim based on features
-        self._load_model()
-        self.scheduler = BackgroundScheduler()
-        self.scheduler.add_job(self.retrain_model, 'interval', hours=24)  # Retrain daily
-        self.scheduler.start()
-        logger.info("Continuous Learning initialized and scheduler started.")
+class ReplayMemory:
+    def __init__(self, capacity):
+        self.memory = deque(maxlen=capacity)
+    
+    def push(self, transition):
+        self.memory.append(transition)
+    
+    def sample(self, batch_size):
+        return random.sample(self.memory, batch_size)
+    
+    def __len__(self):
+        return len(self.memory)
 
-    def _load_model(self):
-        """
-        Load the model if it exists.
-        """
-        if os.path.exists(self.model_path):
-            self.predictor.load_state_dict(torch.load(self.model_path))
-            self.predictor.eval()
-            logger.info(f"Loaded existing model from {self.model_path}.")
+class DQN(nn.Module):
+    def __init__(self, state_size, action_size, hidden_size=64):
+        super(DQN, self).__init__()
+        self.fc1 = nn.Linear(state_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.fc3 = nn.Linear(hidden_size, action_size)
+    
+    def forward(self, x):
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        return self.fc3(x)
+
+class TradingAgent:
+    def __init__(self, state_size, action_size, device='cpu', lr=1e-3, gamma=0.99, memory_capacity=10000, batch_size=64):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.device = device
+        self.gamma = gamma
+        self.batch_size = batch_size
+        
+        self.policy_net = DQN(state_size, action_size).to(device)
+        self.target_net = DQN(state_size, action_size).to(device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.target_net.eval()
+        
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
+        self.memory = ReplayMemory(memory_capacity)
+        self.steps_done = 0
+        self.epsilon = 1.0
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.995
+        self.loss_fn = nn.MSELoss()
+    
+    def select_action(self, state):
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+        if random.random() < self.epsilon:
+            return random.randrange(self.action_size)
         else:
-            logger.info("No existing model found. Initializing a new model.")
-
-    def retrain_model(self):
-        """
-        Fetch new data, engineer features, and retrain the predictive model.
-        """
-        logger.info("Starting model retraining process.")
-        # Fetch historical data
-        df = self.data_ingestion.fetch_historical_data()
-        if df.empty:
-            logger.warning("No data fetched. Skipping retraining.")
+            with torch.no_grad():
+                state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+                q_values = self.policy_net(state)
+                return q_values.argmax().item()
+    
+    def optimize_model(self):
+        if len(self.memory) < self.batch_size:
             return
         
-        # Feature Engineering
-        try:
-            features = self.feature_engineer.generate_features(df)
-            logger.info("Feature engineering completed.")
-        except KeyError as e:
-            logger.error(f"Feature engineering failed: {e}")
-            return
+        transitions = self.memory.sample(self.batch_size)
+        batch = list(zip(*transitions))
         
-        # Prepare data for training
-        X = features[['price']].values  # Assuming 'price' is the feature
-        y = self._generate_labels(X)
+        states = torch.FloatTensor(np.array(batch[0])).to(self.device)
+        actions = torch.LongTensor(batch[1]).unsqueeze(1).to(self.device)
+        rewards = torch.FloatTensor(batch[2]).unsqueeze(1).to(self.device)
+        next_states = torch.FloatTensor(np.array(batch[3])).to(self.device)
+        dones = torch.FloatTensor(batch[4]).unsqueeze(1).to(self.device)
         
-        # Convert to tensors
-        X_tensor = torch.tensor(X, dtype=torch.float32).unsqueeze(0)  # Shape: (batch_size, seq_length, input_dim)
-        y_tensor = torch.tensor(y, dtype=torch.float32).unsqueeze(1)  # Shape: (batch_size, output_dim)
+        current_q = self.policy_net(states).gather(1, actions)
+        max_next_q = self.target_net(next_states).max(1)[0].unsqueeze(1)
+        target_q = rewards + (self.gamma * max_next_q * (1 - dones))
         
-        # Train the model
-        self.predictor.train()
-        criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(self.predictor.parameters(), lr=0.001)
+        loss = self.loss_fn(current_q, target_q)
         
-        epochs = 10
-        for epoch in range(epochs):
-            optimizer.zero_grad()
-            outputs = self.predictor(X_tensor)
-            loss = criterion(outputs, y_tensor)
-            loss.backward()
-            optimizer.step()
-            logger.info(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}")
-        
-        # Save the model
-        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
-        torch.save(self.predictor.state_dict(), self.model_path)
-        logger.info(f"Model retrained and saved to {self.model_path}.")
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+    
+    def update_target_network(self):
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+    
+    def save_model(self, path):
+        torch.save(self.policy_net.state_dict(), path)
+    
+    def load_model(self, path):
+        self.policy_net.load_state_dict(torch.load(path, map_location=self.device))
+        self.target_net.load_state_dict(self.policy_net.state_dict())
 
-    def _generate_labels(self, X):
-        """
-        Generate labels for training. For example, next time step price.
-        """
-        return X[1:].flatten()  # Shifted prices as labels
-
-    def shutdown(self):
-        """
-        Shutdown the scheduler.
-        """
-        self.scheduler.shutdown()
-        logger.info("Continuous Learning scheduler shut down.")
 
