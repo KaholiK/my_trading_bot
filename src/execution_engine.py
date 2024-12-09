@@ -112,3 +112,25 @@ class AlpacaExecutionEngine:
                     logger.error(f"Trade {trade} generated an exception: {e}")
                     results.append({"symbol": trade["symbol"], "action": trade["action"], "status": "failed"})
         return results
+        def execute_trades_concurrently(self, trades):
+    """
+    Executes multiple trades concurrently.
+    
+    :param trades: List of trade dictionaries.
+    :return: List of trade results.
+    """
+    import concurrent.futures
+
+    results = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_trade = {executor.submit(self.execute_trade, trade): trade for trade in trades}
+        for future in concurrent.futures.as_completed(future_to_trade):
+            trade = future_to_trade[future]
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Trade {trade} generated an exception: {e}")
+                results.append({"symbol": trade["symbol"], "action": trade["action"], "status": "failed"})
+    return results
+
