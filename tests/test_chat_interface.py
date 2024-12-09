@@ -1,8 +1,6 @@
-# tests/test_chat_interface.py
-
 import pytest
 from fastapi.testclient import TestClient
-from src.chat_interface import app
+from main import app  # Changed from src.chat_interface import app
 
 client = TestClient(app)
 
@@ -74,4 +72,7 @@ def test_get_credentials_nonexistent():
     """
     response = client.get("/get_credentials/unknown_broker", auth=("admin", "securepassword123"))
     assert response.status_code == 404, "API should return 404 for missing credentials"
-    assert response.json()["detail"] == "Credentials for unknown_broker not found"  # Removed trailing period
+    assert response.json()["detail"] == "Credentials for unknown_broker not found"
+
+def test_dummy():
+    assert True, "Dummy test to ensure testing setup is working."
