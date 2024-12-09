@@ -4,6 +4,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from alpaca_trade_api import REST
 from src.continuous_learning import TradingAgent
+from src.risk_management import RiskManager
 import torch
 
 logger = logging.getLogger(__name__)
@@ -16,11 +17,20 @@ class AlpacaExecutionEngine:
         state_size = 10  # Define based on your feature engineering
         action_size = 3  # Example: Buy, Sell, Hold
         self.agent = TradingAgent(state_size, action_size, device=self.device)
+        # Initialize Risk Manager
+        self.risk_manager = RiskManager()
     
     def execute_trade(self, trade):
         """
-        Executes a single trade based on action.
+        Executes a single trade based on action, considering risk management.
         """
+        if not self.risk_manager.can_trade():
+            logger.warning("Risk management disallows trading at this time.")
+            return {"symbol": trade["symbol"], "action": trade["action"], "status": "risk_limit_exceeded"}
+        
+        # Calculate position size
+        trade["quantity"] = self.risk_manager.calculate_position_size()
+        
         try:
             if trade["action"] == "buy":
                 order = self.api.submit_order(
@@ -43,6 +53,9 @@ class AlpacaExecutionEngine:
                 return {"symbol": trade["symbol"], "action": trade["action"], "status": "hold"}
             
             logger.info(f"Trade executed: {trade}")
+            # Update portfolio value (fetch current portfolio)
+            portfolio = self.api.get_account()
+            self.risk_manager.update_portfolio_value(float(portfolio.equity))
             return {"symbol": trade["symbol"], "action": trade["action"], "status": "executed"}
         except Exception as e:
             logger.error(f"Failed to execute trade {trade}: {e}")
@@ -69,9 +82,9 @@ class AlpacaExecutionEngine:
         
         trade = {
             "symbol": "AAPL",  # Example symbol, replace as needed
-            "quantity": 10,     # Example quantity, replace as needed
+            "quantity": 10,     # Placeholder, will be adjusted by RiskManager
             "action": selected_action,
-            "price": 0          # Placeholder, replace with actual price
+            "price": 0          # Placeholder, implement actual price retrieval
         }
         
         result = self.execute_trade(trade)
@@ -79,4 +92,3 @@ class AlpacaExecutionEngine:
         # and call self.agent.optimize_model()
         
         return result
-
