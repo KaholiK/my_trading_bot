@@ -5,8 +5,8 @@ services:
     build: .
     container_name: trading_bot_container
     ports:
-      - "8000:8000"
-      - "8001:8001"
+      - "8888:8000"   # Maps host port 8888 to container port 8000 (FastAPI)
+      - "47902:8001"  # Maps host port 47902 to container port 8001 (Prometheus)
     env_file:
       - .env
     volumes:
