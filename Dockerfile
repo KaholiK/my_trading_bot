@@ -1,28 +1,34 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10-slim
+# Stage 1: Builder
+FROM python:3.10-slim AS builder
 
-# Set the working directory in the container to /app
 WORKDIR /app
 
-# Install system dependencies (if any)
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the requirements file into the container at /app
+# Copy and install Python dependencies
 COPY requirements.txt .
+RUN pip install --upgrade pip && pip install --user -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Stage 2: Runtime
+FROM python:3.10-slim
 
-# Copy the entire project directory into the container at /app
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Copy application code
 COPY . .
 
-# Set the PYTHONPATH environment variable
+# Set PATH to include user-installed packages
+ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
 
-# Expose ports for FastAPI and Prometheus
+# Expose ports
 EXPOSE 8000 8001
 
-# Define the command to run the application
+# Start the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
