@@ -1,6 +1,9 @@
-# main.py
-
 from src.logging_monitoring import setup_prometheus, setup_logging
+import logging
+
+# Initialize logging
+logger = setup_logging()
+
 from fastapi import FastAPI
 import uvicorn
 from src.execution_engine import AlpacaExecutionEngine
@@ -11,9 +14,6 @@ from src.strategies.swing_trading import SwingTradingStrategy
 from src.config import ALPACA_API_KEY, ALPACA_API_SECRET
 from src.chat_interface import router as chat_router
 import pandas as pd
-
-# Initialize logging
-logger = setup_logging()
 
 # Initialize Prometheus metrics
 setup_prometheus(port=8001)
