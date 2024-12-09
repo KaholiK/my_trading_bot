@@ -9,3 +9,8 @@ uvicorn
 requests
 APScheduler
 numpy
+alpaca-trade-api
+prometheus_client
+beautifulsoup4
+selenium
+scikit-learn
