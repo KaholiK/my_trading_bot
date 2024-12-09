@@ -1,9 +1,9 @@
 import pytest
-from src.execution_engine import BinanceExecutionEngine
+from src.execution_engine import AlpacaExecutionEngine
 
 @pytest.fixture
 def execution_engine():
-    return BinanceExecutionEngine()
+    return AlpacaExecutionEngine(api_key='test_key', api_secret='test_secret', base_url='https://paper-api.alpaca.markets')
 
 def test_execute_trade(execution_engine):
     """
@@ -32,4 +32,3 @@ def test_execute_trades_concurrently(execution_engine):
         assert result["quantity"] == trade["quantity"], "Trade quantity should match"
         assert result["price"] == trade["price"], "Trade price should match"
         assert result["status"] == "executed", "Trade status should be 'executed'"
-
