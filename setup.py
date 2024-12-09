@@ -10,7 +10,7 @@ setup(
     description='A powerful AI-driven trading bot with web access, continuous learning, and strategy generation using OpenAI.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
-    url='https://github.com/your-username/my_trading_bot.git',  # Replace with your GitHub repo URL
+    url=https://github.com/KaholiK/my_trading_bot.git,  # Replace with your GitHub repo URL
     packages=find_packages(where='src'),
     package_dir={'': 'src'},
     install_requires=[
