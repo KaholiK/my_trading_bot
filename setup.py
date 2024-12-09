@@ -1,5 +1,3 @@
-# setup.py
-
 from setuptools import setup, find_packages
 
 setup(
@@ -30,6 +28,7 @@ setup(
         'beautifulsoup4',  # For web scraping
         'selenium',         # If needed for dynamic content
         'scikit-learn',    # For additional ML algorithms
+        'cryptography',    # Added for encryption
     ],
     classifiers=[
         'Programming Language :: Python :: 3.10',
