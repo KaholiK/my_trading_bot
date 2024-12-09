@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from src.execution_engine import AlpacaExecutionEngine
 from src.config import ALPACA_API_KEY, ALPACA_API_SECRET
 from src.logging_monitoring import logger
+from src.risk_management import RiskManager
 import os
 
 router = APIRouter()
@@ -12,6 +13,9 @@ router = APIRouter()
 # Initialize Execution Engine
 BASE_URL = "https://paper-api.alpaca.markets"
 execution_engine = AlpacaExecutionEngine(api_key=ALPACA_API_KEY, api_secret=ALPACA_API_SECRET, base_url=BASE_URL, device='cpu')
+
+# Initialize Risk Manager
+risk_manager = RiskManager()
 
 # Authentication Dependency
 def authenticate(username: str, password: str):
@@ -33,6 +37,9 @@ class TradeCommand(BaseModel):
     symbol: str
     action: str
     quantity: int
+
+class PerformanceQuery(BaseModel):
+    metric: str
 
 @router.post("/set_credentials")
 def set_credentials(credentials: CredentialsInput, username: str = Depends(authenticate)):
@@ -61,3 +68,13 @@ def execute_trade(command: TradeCommand, username: str = Depends(authenticate)):
     }
     result = execution_engine.execute_trade(trade)
     return {"trade_result": result}
+
+@router.post("/query_performance")
+def query_performance(query: PerformanceQuery, username: str = Depends(authenticate)):
+    # Handle performance queries
+    if query.metric == "current_drawdown":
+        return {"current_drawdown": risk_manager.current_drawdown}
+    elif query.metric == "portfolio_value":
+        return {"portfolio_value": risk_manager.portfolio_value}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid performance metric")
