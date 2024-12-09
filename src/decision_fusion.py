@@ -1,34 +1,28 @@
 # src/decision_fusion.py
 
+import pandas as pd
 import logging
-from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
 class DecisionFusion:
-    def __init__(self):
-        # Initialize any necessary variables
-        logger.info("DecisionFusion initialized.")
+    def __init__(self, strategies):
+        """
+        Initialize with a list of strategy instances.
+        """
+        self.strategies = strategies
     
-    def fuse_decisions(self, decisions: List[Dict]) -> Dict:
+    def combine_signals(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Combine decisions from multiple models or strategies.
-        
-        :param decisions: List of decision dictionaries
-        :return: Fused decision
+        Combine signals from multiple strategies to make a final decision.
         """
-        # Placeholder implementation: simple majority vote
-        action_counts = {}
-        for decision in decisions:
-            action = decision.get("action")
-            action_counts[action] = action_counts.get(action, 0) + 1
+        df['combined_signal'] = 0
+        for strategy in self.strategies:
+            signals = strategy.generate_signals(df)
+            df['combined_signal'] += signals['signal']
         
-        if not action_counts:
-            logger.warning("No decisions to fuse.")
-            return {"action": "hold"}
+        # Normalize combined signals
+        df['combined_signal'] = df['combined_signal'].apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
         
-        # Find the action with the highest count
-        fused_action = max(action_counts, key=action_counts.get)
-        logger.info("Fused decision: %s", fused_action)
-        return {"action": fused_action}
-
+        logger.info("Signals combined from all strategies.")
+        return df
