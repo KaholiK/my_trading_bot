@@ -1,7 +1,42 @@
-__pycache__/
-*.pyc
-.env
-.vscode/
-.idea/
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Logs
 logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDEs
+.idea/
+*.swp
+*.swo
+*~
+# .vscode/ is excluded except for settings.json (see .vscode/.gitignore)
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
 .git/
+*.tsbuildinfo

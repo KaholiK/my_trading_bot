@@ -1,0 +1,23 @@
+{
+  "extends": "./tooling/tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/packages/*": ["./packages/*/src"],
+      "@/shared/*": ["./packages/shared/src/*"],
+      "@/llm/*": ["./packages/llm/src/*"],
+      "@/metrics/*": ["./packages/metrics/src/*"],
+      "@/ui/*": ["./packages/ui/src/*"]
+    }
+  },
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/llm" },
+    { "path": "./packages/metrics" },
+    { "path": "./packages/ui" },
+    { "path": "./apps/api" },
+    { "path": "./apps/web" },
+    { "path": "./apps/extension" }
+  ],
+  "files": []
+}

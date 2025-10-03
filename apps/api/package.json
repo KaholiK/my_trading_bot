@@ -1,0 +1,21 @@
+{
+  "name": "@writers-coach/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "echo 'API dev server - to be implemented in PR #6'",
+    "start": "echo 'API start - to be implemented in PR #6'",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'Tests to be implemented in PR #6' && exit 0",
+    "seed": "echo 'Database seed - to be implemented in PR #2' && exit 0"
+  },
+  "dependencies": {
+    "@writers-coach/shared": "workspace:*",
+    "@writers-coach/llm": "workspace:*",
+    "@writers-coach/metrics": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.2"
+  }
+}

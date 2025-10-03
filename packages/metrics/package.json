@@ -1,0 +1,19 @@
+{
+  "name": "@writers-coach/metrics",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'Tests to be implemented in PR #4' && exit 0"
+  },
+  "dependencies": {
+    "@writers-coach/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.2"
+  }
+}

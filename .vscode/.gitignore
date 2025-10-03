@@ -1,0 +1,4 @@
+# Only commit settings.json, ignore other IDE files
+*
+!.gitignore
+!settings.json
